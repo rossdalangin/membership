@@ -160,6 +160,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'init', $plugin_public, 'register_shortcodes' );
         $this->loader->add_action( 'init', $plugin_public, 'process_checkout' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_return' );
+        $this->loader->add_action( 'init', $plugin_public, 'handle_gcash_return' );
         $this->loader->add_filter( 'the_content', $plugin_public, 'filter_the_content' );
     }
 

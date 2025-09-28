@@ -113,6 +113,10 @@ class WMP_Subscriptions {
 
         do_action('wmp_subscription_created', $subscription_id, $data['user_id'], $data['plan_id']);
 
+        if ( isset( $data['status'] ) && 'active' === $data['status'] ) {
+            do_action( 'wmp_subscription_activated', $subscription_id, $data['user_id'] );
+        }
+
         return $subscription_id;
     }
 

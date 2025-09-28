@@ -310,6 +310,32 @@ class WMP_Admin {
                 'key' => 'paypal_secret_key',
             )
         );
+
+        // GCash Settings
+        add_settings_field(
+            'wmp_gcash_public_key',
+            __( 'GCash Public Key', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_gcash_public_key',
+                'option_name' => 'wmp_settings',
+                'key' => 'gcash_public_key',
+            )
+        );
+        add_settings_field(
+            'wmp_gcash_secret_key',
+            __( 'GCash Secret Key', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_gcash_secret_key',
+                'option_name' => 'wmp_settings',
+                'key' => 'gcash_secret_key',
+            )
+        );
     }
 
     /**

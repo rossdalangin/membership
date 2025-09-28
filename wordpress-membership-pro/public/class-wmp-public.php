@@ -191,6 +191,47 @@ class WMP_Public {
     }
 
     /**
+     * Handle the user's return from GCash (simulated).
+     *
+     * @since    1.0.0
+     */
+    public function handle_gcash_return() {
+        if ( ! isset( $_GET['wmp_action'] ) || 'gcash_return' !== $_GET['wmp_action'] ) {
+            return;
+        }
+
+        // In a real scenario, we would verify a signature or make a server-to-server request.
+        // For this simulation, we just check for a success status in the URL.
+        if ( ! isset( $_GET['status'] ) || 'success' !== $_GET['status'] ) {
+            wp_die( 'GCash payment was not successful. Please try again.' );
+        }
+
+        $plan_id = isset( $_GET['plan_id'] ) ? absint( $_GET['plan_id'] ) : 0;
+        $transaction_id = isset( $_GET['transaction_id'] ) ? sanitize_text_field( $_GET['transaction_id'] ) : '';
+        $user_id = get_current_user_id();
+
+        if ( ! $user_id || ! $plan_id ) {
+            wp_die( __( 'Error: Missing user or plan information during payment processing.', 'wordpress-membership-pro' ) );
+        }
+
+        // Create the active subscription.
+        $subscription_data = array(
+            'user_id'                 => $user_id,
+            'plan_id'                 => $plan_id,
+            'status'                  => 'active',
+            'start_date'              => current_time( 'mysql' ),
+            'gateway'                 => 'gcash',
+            'gateway_subscription_id' => $transaction_id,
+        );
+
+        $this->subscriptions_handler->create_subscription( $subscription_data );
+
+        // Redirect to a success page.
+        wp_redirect( home_url( '/thank-you?wmp_message=purchase_success' ) );
+        exit;
+    }
+
+    /**
      * Register the shortcodes for the public-facing side of the site.
      *
      * @since    1.0.0
