@@ -1,0 +1,86 @@
+<?php
+/**
+ * The file that defines the core referral management functions.
+ *
+ * @link       https://example.com
+ * @since      1.0.0
+ *
+ * @package    WordPress_Membership_Pro
+ * @subpackage WordPress_Membership_Pro/affiliates
+ */
+
+/**
+ * The referral management class.
+ *
+ * This is used to manage referral data, including creating new referral records
+ * and updating them upon conversion.
+ *
+ * @since      1.0.0
+ * @package    WordPress_Membership_Pro
+ * @subpackage WordPress_Membership_Pro/affiliates
+ * @author     Jules
+ */
+class WMP_Referrals {
+
+    /**
+     * The name of the referrals table.
+     *
+     * @since    1.0.0
+     * @access   private
+     * @var      string
+     */
+    private $table_name;
+
+    /**
+     * Initialize the class and set its properties.
+     *
+     * @since    1.0.0
+     */
+    public function __construct() {
+        global $wpdb;
+        $this->table_name = $wpdb->prefix . 'wmp_referrals';
+    }
+
+    /**
+     * Create a new referral record.
+     *
+     * @since   1.0.0
+     * @param   array $data     The data for the new referral.
+     * @return  int|false       The ID of the new referral or false on failure.
+     */
+    public function create_referral( $data ) {
+        global $wpdb;
+
+        $data['created_at'] = current_time( 'mysql' );
+        $data['status'] = 'pending'; // All referrals start as pending
+
+        $result = $wpdb->insert( $this->table_name, $data );
+
+        return $result ? $wpdb->insert_id : false;
+    }
+
+    /**
+     * Mark a referral as converted.
+     *
+     * @since   1.0.0
+     * @param   int $referral_id       The ID of the referral to update.
+     * @param   int $transaction_id    The ID of the associated transaction.
+     * @return  bool                   True on success, false on failure.
+     */
+    public function mark_as_converted( $referral_id, $transaction_id ) {
+        global $wpdb;
+
+        $result = $wpdb->update(
+            $this->table_name,
+            array(
+                'status'         => 'converted',
+                'transaction_id' => $transaction_id,
+            ),
+            array( 'id' => $referral_id ),
+            array( '%s', '%d' ),
+            array( '%d' )
+        );
+
+        return $result !== false;
+    }
+}

@@ -99,6 +99,36 @@ class WMP_Admin {
             'wmp-settings',
             array( $this, 'render_settings_page' )
         );
+
+        // Affiliates Submenu Page
+        add_submenu_page(
+            'wmp-subscriptions', // Parent slug
+            __( 'Affiliates', 'wordpress-membership-pro' ),
+            __( 'Affiliates', 'wordpress-membership-pro' ),
+            'manage_options',
+            'wmp-affiliates',
+            array( $this, 'render_affiliates_page' )
+        );
+    }
+
+    /**
+     * Render the affiliates list table page.
+     *
+     * @since    1.0.0
+     */
+    public function render_affiliates_page() {
+        $affiliates_list_table = new WMP_Affiliates_List_Table();
+        $affiliates_list_table->prepare_items();
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline"><?php _e( 'Affiliates', 'wordpress-membership-pro' ); ?></h1>
+            <form method="post">
+                <?php
+                $affiliates_list_table->display();
+                ?>
+            </form>
+        </div>
+        <?php
     }
 
     /**
@@ -165,6 +195,44 @@ class WMP_Admin {
     }
 
     /**
+     * Process the affiliate list table actions.
+     *
+     * @since    1.0.0
+     */
+    public function process_affiliate_actions() {
+        if ( ! isset( $_GET['page'] ) || 'wmp-affiliates' !== $_GET['page'] ) {
+            return;
+        }
+
+        if ( ! isset( $_GET['action'] ) || ! isset( $_GET['_wpnonce'] ) ) {
+            return;
+        }
+
+        if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_affiliate_action_nonce' ) ) {
+            wp_die( 'Security check failed.' );
+        }
+
+        $action = sanitize_key( $_GET['action'] );
+        $affiliate_id = absint( $_GET['affiliate'] );
+        $affiliates_handler = new WMP_Affiliates();
+        $redirect_url = admin_url( 'admin.php?page=wmp-affiliates' );
+
+        switch ( $action ) {
+            case 'approve_affiliate':
+                $affiliates_handler->update_status( $affiliate_id, 'active' );
+                $redirect_url = add_query_arg( 'wmp_message', 'affiliate_approved', $redirect_url );
+                break;
+            case 'reject_affiliate':
+                $affiliates_handler->update_status( $affiliate_id, 'rejected' );
+                $redirect_url = add_query_arg( 'wmp_message', 'affiliate_rejected', $redirect_url );
+                break;
+        }
+
+        wp_redirect( $redirect_url );
+        exit;
+    }
+
+    /**
      * Display admin notices.
      *
      * @since    1.0.0
@@ -184,6 +252,12 @@ class WMP_Admin {
                 break;
             case 'deleted':
                 $message = __( 'Subscription deleted successfully.', 'wordpress-membership-pro' );
+                break;
+            case 'affiliate_approved':
+                $message = __( 'Affiliate approved successfully.', 'wordpress-membership-pro' );
+                break;
+            case 'affiliate_rejected':
+                $message = __( 'Affiliate rejected successfully.', 'wordpress-membership-pro' );
                 break;
         }
 

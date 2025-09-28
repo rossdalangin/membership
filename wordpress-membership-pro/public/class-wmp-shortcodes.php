@@ -38,15 +38,26 @@ class WMP_Shortcodes {
     private $gateways_manager;
 
     /**
+     * The affiliates handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Affiliates
+     */
+    private $affiliates_handler;
+
+    /**
      * Initialize the class and set its properties.
      *
      * @since    1.0.0
      * @param    WMP_Subscriptions    $subscriptions_handler    The subscription handler instance.
      * @param    WMP_Gateways         $gateways_manager         The gateways manager instance.
+     * @param    WMP_Affiliates       $affiliates_handler       The affiliates handler instance.
      */
-    public function __construct( WMP_Subscriptions $subscriptions_handler, WMP_Gateways $gateways_manager ) {
+    public function __construct( WMP_Subscriptions $subscriptions_handler, WMP_Gateways $gateways_manager, WMP_Affiliates $affiliates_handler ) {
         $this->subscriptions_handler = $subscriptions_handler;
         $this->gateways_manager      = $gateways_manager;
+        $this->affiliates_handler    = $affiliates_handler;
     }
 
     /**
@@ -257,6 +268,93 @@ class WMP_Shortcodes {
         }
 
         $output .= '</div>';
+        return $output;
+    }
+
+    /**
+     * Renders the [wmp_affiliate_registration] shortcode.
+     *
+     * Displays a form for users to apply to the affiliate program.
+     *
+     * @since    1.0.0
+     * @param    array     $atts    Shortcode attributes.
+     * @return   string    The shortcode output.
+     */
+    public function render_affiliate_registration_shortcode( $atts ) {
+        if ( isset( $_GET['wmp_message'] ) && 'affiliate_application_received' === $_GET['wmp_message'] ) {
+            return '<div class="wmp-message success"><p>' . __( 'Thank you for your application! We will review it shortly.', 'wordpress-membership-pro' ) . '</p></div>';
+        }
+
+        if ( ! is_user_logged_in() ) {
+            return __( 'You must be logged in to apply for the affiliate program.', 'wordpress-membership-pro' );
+        }
+
+        $user_id = get_current_user_id();
+        $affiliate = $this->affiliates_handler->get_affiliate_by_user( $user_id );
+
+        if ( $affiliate ) {
+            if ( 'active' === $affiliate->status ) {
+                return __( 'You are already an active affiliate.', 'wordpress-membership-pro' );
+            } elseif ( 'pending' === $affiliate->status ) {
+                return __( 'Your affiliate application is currently pending review.', 'wordpress-membership-pro' );
+            } else {
+                return __( 'Your affiliate application has been rejected.', 'wordpress-membership-pro' );
+            }
+        }
+
+        $output = '<div class="wmp-affiliate-registration-form">';
+        $output .= '<h3>' . __( 'Become an Affiliate', 'wordpress-membership-pro' ) . '</h3>';
+        $output .= '<p>' . __( 'Apply to become an affiliate and earn commissions by promoting our memberships.', 'wordpress-membership-pro' ) . '</p>';
+        $output .= '<form id="wmp-affiliate-registration" action="" method="post">';
+        $output .= wp_nonce_field( 'wmp_affiliate_registration_nonce', '_wpnonce', true, false );
+        $output .= '<input type="hidden" name="wmp_action" value="process_affiliate_registration" />';
+        $output .= '<input type="submit" value="' . __( 'Apply Now', 'wordpress-membership-pro' ) . '" />';
+        $output .= '</form>';
+        $output .= '</div>';
+
+        return $output;
+    }
+
+    /**
+     * Renders the [wmp_affiliate_dashboard] shortcode.
+     *
+     * Displays the affiliate's dashboard with their link and stats.
+     *
+     * @since    1.0.0
+     * @param    array     $atts    Shortcode attributes.
+     * @return   string    The shortcode output.
+     */
+    public function render_affiliate_dashboard_shortcode( $atts ) {
+        if ( ! is_user_logged_in() ) {
+            return __( 'You must be logged in to view the affiliate dashboard.', 'wordpress-membership-pro' );
+        }
+
+        $user_id = get_current_user_id();
+        $affiliate = $this->affiliates_handler->get_affiliate_by_user( $user_id );
+
+        if ( ! $affiliate || 'active' !== $affiliate->status ) {
+            return __( 'You are not an active affiliate. You can apply to become one here.', 'wordpress-membership-pro' ); // In a real scenario, we would link to the registration page.
+        }
+
+        $referral_url = add_query_arg( 'ref', $affiliate->id, home_url( '/' ) );
+
+        $output = '<div class="wmp-affiliate-dashboard">';
+        $output .= '<h2>' . __( 'Affiliate Dashboard', 'wordpress-membership-pro' ) . '</h2>';
+
+        $output .= '<h3>' . __( 'Your Referral Link', 'wordpress-membership-pro' ) . '</h3>';
+        $output .= '<p>' . __( 'Share this link to earn commissions on new memberships:', 'wordpress-membership-pro' ) . '</p>';
+        $output .= '<input type="text" value="' . esc_url( $referral_url ) . '" readonly="readonly" style="width: 100%;" />';
+
+        // Placeholders for future stats implementation
+        $output .= '<h3>' . __( 'Your Performance', 'wordpress-membership-pro' ) . '</h3>';
+        $output .= '<ul>';
+        $output .= '<li><strong>' . __( 'Referral Visits:', 'wordpress-membership-pro' ) . '</strong> 0</li>';
+        $output .= '<li><strong>' . __( 'Successful Conversions:', 'wordpress-membership-pro' ) . '</strong> 0</li>';
+        $output .= '<li><strong>' . __( 'Total Earnings:', 'wordpress-membership-pro' ) . '</strong> $0.00</li>';
+        $output .= '</ul>';
+
+        $output .= '</div>';
+
         return $output;
     }
 }

@@ -62,6 +62,24 @@ class WordPress_Membership_Pro {
     protected $gateways_manager;
 
     /**
+     * The affiliate handler instance.
+     *
+     * @since    1.0.0
+     * @access   protected
+     * @var      WMP_Affiliates    $affiliates_handler    Handles affiliate logic.
+     */
+    protected $affiliates_handler;
+
+    /**
+     * The referrals handler instance.
+     *
+     * @since    1.0.0
+     * @access   protected
+     * @var      WMP_Referrals    $referrals_handler    Handles referral logic.
+     */
+    protected $referrals_handler;
+
+    /**
      * Define the core functionality of the plugin.
      *
      * Set the plugin name and the plugin version that can be used throughout the plugin.
@@ -76,7 +94,9 @@ class WordPress_Membership_Pro {
 
         $this->load_dependencies();
         $this->subscriptions_handler = new WMP_Subscriptions();
-        $this->gateways_manager = new WMP_Gateways();
+        $this->gateways_manager      = new WMP_Gateways();
+        $this->affiliates_handler    = new WMP_Affiliates();
+        $this->referrals_handler     = new WMP_Referrals();
         $this->set_locale();
         $this->define_core_hooks();
         $this->define_admin_hooks();
@@ -100,6 +120,9 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-gateways.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-emails.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-email-hooks.php';
+        require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-affiliates.php';
+        require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-referrals.php';
+        require_once WMP_PLUGIN_DIR . 'admin/class-wmp-affiliates-list-table.php';
 
         $this->loader = new WMP_Loader();
     }
@@ -150,6 +173,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'admin_menu', $plugin_admin, 'add_admin_menus' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'register_settings' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_subscription_actions' );
+        $this->loader->add_action( 'admin_init', $plugin_admin, 'process_affiliate_actions' );
     }
 
     /**
@@ -160,16 +184,19 @@ class WordPress_Membership_Pro {
      * @access   private
      */
     private function define_public_hooks() {
-        $plugin_public = new WMP_Public( $this->get_plugin_name(), $this->get_version(), $this->subscriptions_handler, $this->gateways_manager );
+        $plugin_public = new WMP_Public( $this->get_plugin_name(), $this->get_version(), $this->subscriptions_handler, $this->gateways_manager, $this->affiliates_handler, $this->referrals_handler );
 
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );
 
         // Register shortcodes, content protection, and checkout processing
+        $this->loader->add_action( 'init', $plugin_public, 'track_referral_visit' );
+        $this->loader->add_action( 'wmp_subscription_created', $plugin_public, 'record_referral_on_subscription', 10, 3 );
         $this->loader->add_action( 'init', $plugin_public, 'register_shortcodes' );
         $this->loader->add_action( 'init', $plugin_public, 'process_checkout' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_return' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_gcash_return' );
+        $this->loader->add_action( 'init', $plugin_public, 'process_affiliate_registration' );
         $this->loader->add_filter( 'the_content', $plugin_public, 'filter_the_content' );
     }
 

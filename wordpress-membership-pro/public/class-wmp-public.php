@@ -55,17 +55,37 @@ class WMP_Public {
      */
     private $gateways_manager;
 
-    public function __construct( $plugin_name, $version, $subscriptions_handler, $gateways_manager ) {
+    /**
+     * The affiliates handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Affiliates
+     */
+    private $affiliates_handler;
+
+    /**
+     * The referrals handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Referrals
+     */
+    private $referrals_handler;
+
+    public function __construct( $plugin_name, $version, $subscriptions_handler, $gateways_manager, $affiliates_handler, $referrals_handler ) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
         $this->subscriptions_handler = $subscriptions_handler;
         $this->gateways_manager = $gateways_manager;
+        $this->affiliates_handler = $affiliates_handler;
+        $this->referrals_handler = $referrals_handler;
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-content-protection.php';
         $this->content_protection = new WMP_Content_Protection();
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-shortcodes.php';
-        $this->shortcodes = new WMP_Shortcodes( $this->subscriptions_handler, $this->gateways_manager );
+        $this->shortcodes = new WMP_Shortcodes( $this->subscriptions_handler, $this->gateways_manager, $this->affiliates_handler );
     }
 
     /**
@@ -124,6 +144,113 @@ class WMP_Public {
             'checkout_page_id' => get_the_ID(),
         ];
         $gateway->process_payment( $data );
+    }
+
+    /**
+     * Records a referral if a referral cookie is present during subscription creation.
+     *
+     * @since    1.0.0
+     * @param    int    $subscription_id    The ID of the new subscription.
+     * @param    int    $user_id            The ID of the user.
+     * @param    int    $plan_id            The ID of the plan.
+     */
+    public function record_referral_on_subscription( $subscription_id, $user_id, $plan_id ) {
+        if ( ! isset( $_COOKIE['wmp_ref_id'] ) ) {
+            return;
+        }
+
+        $affiliate_id = absint( $_COOKIE['wmp_ref_id'] );
+        if ( ! $affiliate_id ) {
+            return;
+        }
+
+        $affiliate = $this->affiliates_handler->get_affiliate( $affiliate_id );
+        if ( ! $affiliate || 'active' !== $affiliate->status ) {
+            return; // Only track for active affiliates.
+        }
+
+        $referral_data = array(
+            'affiliate_id'  => $affiliate_id,
+            'referring_url' => isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( $_SERVER['HTTP_REFERER'] ) : '',
+            'ip_address'    => $this->get_ip_address(),
+        );
+
+        $this->referrals_handler->create_referral( $referral_data );
+
+        // Unset the cookie after it has been used to prevent duplicate referrals.
+        unset( $_COOKIE['wmp_ref_id'] );
+        setcookie( 'wmp_ref_id', '', time() - 3600, COOKIEPATH, COOKIE_DOMAIN );
+    }
+
+    /**
+     * Get the user's IP address.
+     *
+     * @since    1.0.0
+     * @return   string
+     */
+    private function get_ip_address() {
+        if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
+            $ip = $_SERVER['HTTP_CLIENT_IP'];
+        } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+            $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } else {
+            $ip = $_SERVER['REMOTE_ADDR'];
+        }
+        return sanitize_text_field( $ip );
+    }
+
+    /**
+     * Tracks affiliate referrals by setting a cookie.
+     *
+     * @since    1.0.0
+     */
+    public function track_referral_visit() {
+        if ( isset( $_GET['ref'] ) ) {
+            $affiliate_id = absint( $_GET['ref'] );
+            if ( $affiliate_id ) {
+                // Set a cookie to track the referral for 30 days.
+                setcookie( 'wmp_ref_id', $affiliate_id, time() + ( 86400 * 30 ), COOKIEPATH, COOKIE_DOMAIN );
+            }
+        }
+    }
+
+    /**
+     * Process the affiliate registration form submission.
+     *
+     * @since    1.0.0
+     */
+    public function process_affiliate_registration() {
+        if ( ! isset( $_POST['wmp_action'] ) || 'process_affiliate_registration' !== $_POST['wmp_action'] ) {
+            return;
+        }
+
+        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'wmp_affiliate_registration_nonce' ) ) {
+            wp_die( 'Security check failed.' );
+        }
+
+        if ( ! is_user_logged_in() ) {
+            wp_die( 'You must be logged in to complete this action.' );
+        }
+
+        $user_id = get_current_user_id();
+        $affiliate = $this->affiliates_handler->get_affiliate_by_user( $user_id );
+
+        if ( $affiliate ) {
+            // User already has an affiliate status, do nothing.
+            return;
+        }
+
+        $affiliate_data = array(
+            'user_id'         => $user_id,
+            'status'          => 'pending',
+            'commission_rate' => 20.00, // Default commission rate, could be a setting
+        );
+
+        $this->affiliates_handler->create_affiliate( $affiliate_data );
+
+        $redirect_url = add_query_arg( 'wmp_message', 'affiliate_application_received', get_permalink() );
+        wp_redirect( $redirect_url );
+        exit;
     }
 
     /**
@@ -242,6 +369,8 @@ class WMP_Public {
         add_shortcode( 'wmp_account', array( $this->shortcodes, 'render_account_shortcode' ) );
         add_shortcode( 'wmp_checkout', array( $this->shortcodes, 'render_checkout_shortcode' ) );
         add_shortcode( 'wmp_thank_you', array( $this->shortcodes, 'render_thank_you_shortcode' ) );
+        add_shortcode( 'wmp_affiliate_registration', array( $this->shortcodes, 'render_affiliate_registration_shortcode' ) );
+        add_shortcode( 'wmp_affiliate_dashboard', array( $this->shortcodes, 'render_affiliate_dashboard_shortcode' ) );
     }
 
     /**
