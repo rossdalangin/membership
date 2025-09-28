@@ -104,7 +104,8 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
 
         $actions = array();
         $nonce = wp_create_nonce( 'wmp_affiliate_action_nonce' );
-        $page = request_parameter( 'page' );
+       // $page = request_parameter( 'page' );
+		$page = isset( $_REQUEST['page'] ) ? sanitize_text_field( $_REQUEST['page'] ) : '';
 
         if ( 'pending' === $item['status'] ) {
             $actions['approve'] = sprintf(

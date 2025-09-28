@@ -129,8 +129,8 @@ class WMP_Subscriptions_List_Table extends WP_List_Table {
      */
     public function column_id( $item ) {
         $nonce = wp_create_nonce( 'wmp_subscription_action_nonce' );
-        $page = request_parameter( 'page' );
-
+       // $page = request_parameter( 'page' );
+		$page = isset( $_REQUEST['page'] ) ? sanitize_text_field( $_REQUEST['page'] ) : '';
         $actions = array();
 
         if ( 'on-hold' === $item['status'] ) {
