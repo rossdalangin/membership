@@ -31,11 +31,21 @@ class WMP_Gateways {
     private $gateways = array();
 
     /**
+     * The subscription handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Subscriptions
+     */
+    private $subscriptions_handler;
+
+    /**
      * Initialize the class and load the gateways.
      *
      * @since    1.0.0
      */
-    public function __construct() {
+    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
+        $this->subscriptions_handler = $subscriptions_handler;
         $this->load_gateways();
     }
 
@@ -56,7 +66,7 @@ class WMP_Gateways {
             $class_name = 'WMP_Gateway_' . str_replace( '-', '_', ucwords( $class_name, '-' ) );
 
             if ( class_exists( $class_name ) ) {
-                $gateway = new $class_name();
+                $gateway = new $class_name( $this->subscriptions_handler );
                 $this->gateways[ $gateway->id ] = $gateway;
             }
         }

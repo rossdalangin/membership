@@ -44,8 +44,23 @@ class WMP_Gateway_Offline {
      *
      * @since    1.0.0
      */
-    public function __construct() {
+    /**
+     * The subscription handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Subscriptions
+     */
+    private $subscriptions_handler;
+
+    /**
+     * Initialize the class and set its properties.
+     *
+     * @since    1.0.0
+     */
+    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
         $this->title = __( 'Offline Payment', 'wordpress-membership-pro' );
+        $this->subscriptions_handler = $subscriptions_handler;
     }
 
     /**

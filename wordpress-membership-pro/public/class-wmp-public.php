@@ -318,6 +318,48 @@ class WMP_Public {
     }
 
     /**
+     * Handle the user's return from PayPal after approving a subscription.
+     *
+     * @since    1.0.0
+     */
+    public function handle_paypal_subscription_return() {
+        if ( ! isset( $_GET['wmp_action'] ) || 'paypal_return_subscription' !== $_GET['wmp_action'] ) {
+            return;
+        }
+
+        if ( ! isset( $_GET['subscription_id'] ) ) {
+            return;
+        }
+
+        $paypal_subscription_id = sanitize_text_field( $_GET['subscription_id'] );
+
+        // We will get the plan_id from a transient we stored during the initial call.
+        $plan_id = get_transient( 'wmp_temp_plan_id_for_user_' . get_current_user_id() );
+        if ( ! $plan_id ) {
+            wp_die( 'Your session has expired. Please try the checkout process again.' );
+        }
+        delete_transient( 'wmp_temp_plan_id_for_user_' . get_current_user_id() );
+
+        // Create a 'pending' subscription. The webhook will activate it.
+        $user_id = get_current_user_id();
+        $subscription_data = array(
+            'user_id'                 => $user_id,
+            'plan_id'                 => $plan_id,
+            'status'                  => 'pending',
+            'start_date'              => current_time( 'mysql' ),
+            'gateway'                 => 'paypal',
+            'gateway_subscription_id' => $paypal_subscription_id,
+        );
+
+        $this->subscriptions_handler->create_subscription( $subscription_data );
+
+        // Redirect to a success page, informing the user that the subscription is being finalized.
+        wp_redirect( home_url( '/thank-you?wmp_message=purchase_pending' ) );
+        exit;
+    }
+
+
+    /**
      * Handle the user's return from GCash (simulated).
      *
      * @since    1.0.0

@@ -384,6 +384,17 @@ class WMP_Admin {
                 'key' => 'paypal_secret_key',
             )
         );
+        add_settings_field(
+            'wmp_paypal_webhook_url',
+            __( 'PayPal Webhook URL', 'wordpress-membership-pro' ),
+            array( $this, 'render_static_text' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'text' => get_rest_url( null, 'wmp/v1/webhooks/paypal' ),
+                'description' => __( 'Add this URL to your PayPal account to enable automated subscription updates.', 'wordpress-membership-pro' ),
+            )
+        );
 
         // GCash Settings
         add_settings_field(
@@ -488,6 +499,19 @@ class WMP_Admin {
     }
 
     /**
+     * Render a static text field for a settings page.
+     *
+     * @since    1.0.0
+     * @param    array    $args    The arguments for the field.
+     */
+    public function render_static_text( $args ) {
+        echo '<input type="text" value="' . esc_attr( $args['text'] ) . '" readonly="readonly" class="regular-text" />';
+        if ( ! empty( $args['description'] ) ) {
+            echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
+        }
+    }
+
+    /**
      * Render a generic checkbox input field for a settings page.
      *
      * @since    1.0.0
@@ -539,6 +563,21 @@ class WMP_Admin {
         $billing_frequency = get_post_meta( $post->ID, '_wmp_billing_frequency', true );
         $trial_days = get_post_meta( $post->ID, '_wmp_trial_days', true );
         $assigned_role = get_post_meta( $post->ID, '_wmp_assigned_role', true );
+        $payment_type = get_post_meta( $post->ID, '_wmp_payment_type', true );
+
+        // --- Payment Type ---
+        echo '<p>';
+        echo '<label for="wmp_payment_type"><strong>' . __( 'Payment Type', 'wordpress-membership-pro' ) . '</strong></label><br/>';
+        echo '<select id="wmp_payment_type" name="wmp_payment_type">';
+        $types = array(
+            'one-time' => __( 'One-Time Payment', 'wordpress-membership-pro' ),
+            'subscription' => __( 'Subscription', 'wordpress-membership-pro' ),
+        );
+        foreach ($types as $key => $value) {
+            echo '<option value="' . esc_attr( $key ) . '" ' . selected( $payment_type, $key, false ) . '>' . esc_html( $value ) . '</option>';
+        }
+        echo '</select>';
+        echo '</p>';
 
         // --- Price ---
         echo '<p>';
@@ -630,7 +669,7 @@ class WMP_Admin {
 
         // Save Plan Details meta box
         if ( isset( $_POST['wmp_plan_details_nonce'] ) && wp_verify_nonce( $_POST['wmp_plan_details_nonce'], 'wmp_save_plan_details' ) ) {
-            $plan_fields = ['wmp_price', 'wmp_billing_period', 'wmp_billing_frequency', 'wmp_trial_days', 'wmp_assigned_role'];
+            $plan_fields = ['wmp_price', 'wmp_billing_period', 'wmp_billing_frequency', 'wmp_trial_days', 'wmp_assigned_role', 'wmp_payment_type'];
             foreach ($plan_fields as $field) {
                 if (isset($_POST[$field])) {
                     update_post_meta($post_id, '_' . $field, sanitize_text_field($_POST[$field]));

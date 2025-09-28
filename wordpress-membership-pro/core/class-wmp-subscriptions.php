@@ -91,6 +91,19 @@ class WMP_Subscriptions {
     }
 
     /**
+     * Get a subscription by its gateway subscription ID.
+     *
+     * @since   1.0.0
+     * @param   string $gateway_id                 The ID of the gateway.
+     * @param   string $gateway_subscription_id    The subscription ID from the gateway.
+     * @return  object|null                         The subscription object or null if not found.
+     */
+    public function get_subscription_by_gateway_id( $gateway_id, $gateway_subscription_id ) {
+        global $wpdb;
+        return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table_name} WHERE gateway = %s AND gateway_subscription_id = %s", $gateway_id, $gateway_subscription_id ) );
+    }
+
+    /**
      * Create a new subscription.
      *
      * @since   1.0.0

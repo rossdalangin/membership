@@ -68,12 +68,22 @@ class WMP_Gateway_Paypal {
     private $mode;
 
     /**
+     * The subscription handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Subscriptions
+     */
+    private $subscriptions_handler;
+
+    /**
      * Initialize the class and set its properties.
      *
      * @since    1.0.0
      */
-    public function __construct() {
+    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
         $this->title = __( 'PayPal', 'wordpress-membership-pro' );
+        $this->subscriptions_handler = $subscriptions_handler;
 
         // Load settings - these will be implemented in the next step.
         $options = get_option( 'wmp_settings' );
@@ -122,6 +132,23 @@ class WMP_Gateway_Paypal {
      * @param    array    $data    The data for the payment, including plan_id.
      */
     public function process_payment( $data ) {
+        $plan_id = $data['plan_id'];
+        $payment_type = get_post_meta( $plan_id, '_wmp_payment_type', true );
+
+        if ( 'subscription' === $payment_type ) {
+            return $this->process_subscription_payment( $data );
+        } else {
+            return $this->process_one_time_payment( $data );
+        }
+    }
+
+    /**
+     * Process a one-time payment by creating a PayPal order.
+     *
+     * @since    1.0.0
+     * @param    array    $data    The data for the payment.
+     */
+    private function process_one_time_payment( $data ) {
         $access_token = $this->get_access_token();
         if ( ! $access_token ) {
             wp_die( 'Could not connect to PayPal. Please check API credentials.' );
@@ -180,6 +207,138 @@ class WMP_Gateway_Paypal {
 
         wp_die( 'Could not get PayPal approval link. Please try again.' );
     }
+
+    /**
+     * Process a recurring subscription payment.
+     *
+     * @since    1.0.0
+     * @param    array    $data    The data for the payment.
+     */
+    private function process_subscription_payment( $data ) {
+        $access_token = $this->get_access_token();
+        if ( ! $access_token ) {
+            wp_die( 'Could not connect to PayPal. Please check API credentials.' );
+        }
+
+        $plan_id = $data['plan_id'];
+        $plan = get_post( $plan_id );
+
+        // Step 1: Create a Product on PayPal for the site (if it doesn't exist)
+        $product_id = get_option( 'wmp_paypal_product_id' );
+        if ( ! $product_id ) {
+            $product_data = array(
+                'name'        => get_bloginfo( 'name' ),
+                'description' => 'Memberships for ' . get_bloginfo( 'name' ),
+                'type'        => 'SERVICE',
+                'category'    => 'SOFTWARE',
+            );
+            $product_response = $this->api_request( '/v1/catalogs/products', $product_data );
+            if ( isset( $product_response['id'] ) ) {
+                $product_id = $product_response['id'];
+                update_option( 'wmp_paypal_product_id', $product_id );
+            } else {
+                wp_die( 'Could not create PayPal Product.' );
+            }
+        }
+
+        // Step 2: Create a Plan on PayPal for this membership level (if it doesn't exist)
+        $paypal_plan_id = get_post_meta( $plan_id, '_wmp_paypal_plan_id', true );
+        if ( ! $paypal_plan_id ) {
+            $billing_frequency = get_post_meta( $plan_id, '_wmp_billing_frequency', true );
+            $billing_period = get_post_meta( $plan_id, '_wmp_billing_period', true );
+            $price = get_post_meta( $plan_id, '_wmp_price', true );
+
+            $plan_data = array(
+                'product_id'        => $product_id,
+                'name'              => $plan->post_title,
+                'description'       => wp_strip_all_tags( $plan->post_content ),
+                'status'            => 'ACTIVE',
+                'billing_cycles'    => array(
+                    array(
+                        'frequency' => array(
+                            'interval_unit' => strtoupper( $billing_period ),
+                            'interval_count' => absint( $billing_frequency ),
+                        ),
+                        'tenure_type'   => 'REGULAR',
+                        'sequence'      => 1,
+                        'total_cycles'  => 0, // 0 for infinite
+                        'pricing_scheme' => array(
+                            'fixed_price' => array(
+                                'value'         => $price,
+                                'currency_code' => 'USD',
+                            ),
+                        ),
+                    ),
+                ),
+                'payment_preferences' => array(
+                    'auto_bill_outstanding' => true,
+                    'payment_failure_threshold' => 3,
+                ),
+            );
+            $plan_response = $this->api_request( '/v1/billing/plans', $plan_data );
+            if ( isset( $plan_response['id'] ) ) {
+                $paypal_plan_id = $plan_response['id'];
+                update_post_meta( $plan_id, '_wmp_paypal_plan_id', $paypal_plan_id );
+            } else {
+                wp_die( 'Could not create PayPal Plan.' );
+            }
+        }
+
+        // Step 3: Create the Subscription
+        $subscription_data = array(
+            'plan_id'             => $paypal_plan_id,
+            'application_context' => array(
+                'return_url' => add_query_arg( [ 'wmp_action' => 'paypal_return_subscription' ], home_url( '/thank-you' ) ),
+                'cancel_url' => get_permalink( $data['checkout_page_id'] ),
+            ),
+        );
+        $subscription_response = $this->api_request( '/v1/billing/subscriptions', $subscription_data );
+
+        if ( isset( $subscription_response['links'] ) ) {
+            foreach ( $subscription_response['links'] as $link ) {
+                if ( 'approve' === $link['rel'] ) {
+                    // Temporarily store the plan_id to retrieve it on return.
+                    // This is not ideal and will be replaced by a proper webhook handler.
+                    set_transient( 'wmp_temp_plan_id_for_user_' . $data['user_id'], $plan_id, HOUR_IN_SECONDS );
+                    wp_redirect( $link['href'] );
+                    exit;
+                }
+            }
+        }
+
+        wp_die( 'Could not create PayPal Subscription. Please try again.' );
+    }
+
+    /**
+     * Generic method to make a POST request to the PayPal API.
+     *
+     * @since 1.0.0
+     * @param string $endpoint The API endpoint.
+     * @param array $data The data to send.
+     * @return array|false The API response or false on failure.
+     */
+    private function api_request( $endpoint, $data ) {
+        $access_token = $this->get_access_token();
+        if ( ! $access_token ) {
+            return false;
+        }
+
+        $url = $this->get_api_base_url() . $endpoint;
+        $response = wp_remote_post( $url, array(
+            'headers' => array(
+                'Content-Type'  => 'application/json',
+                'Authorization' => 'Bearer ' . $access_token,
+            ),
+            'body' => json_encode( $data ),
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            return false;
+        }
+
+        return json_decode( wp_remote_retrieve_body( $response ), true );
+    }
+
 
     /**
      * Execute the payment after user approval.

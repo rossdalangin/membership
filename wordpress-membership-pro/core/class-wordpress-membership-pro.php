@@ -94,7 +94,7 @@ class WordPress_Membership_Pro {
 
         $this->load_dependencies();
         $this->subscriptions_handler = new WMP_Subscriptions();
-        $this->gateways_manager      = new WMP_Gateways();
+        $this->gateways_manager      = new WMP_Gateways( $this->subscriptions_handler );
         $this->affiliates_handler    = new WMP_Affiliates();
         $this->referrals_handler     = new WMP_Referrals();
         $this->set_locale();
@@ -123,6 +123,7 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-affiliates.php';
         require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-referrals.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-affiliates-list-table.php';
+        require_once WMP_PLUGIN_DIR . 'api/class-wmp-api.php';
 
         $this->loader = new WMP_Loader();
     }
@@ -154,6 +155,10 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'wmp_subscription_created', $plugin_email_hooks, 'on_subscription_created', 10, 3 );
         $this->loader->add_action( 'wmp_subscription_activated', $plugin_email_hooks, 'on_subscription_activated', 10, 2 );
         $this->loader->add_action( 'wmp_subscription_cancelled', $plugin_email_hooks, 'on_subscription_cancelled', 10, 2 );
+
+        // REST API hooks
+        $plugin_api = new WMP_API( $this->subscriptions_handler );
+        $this->loader->add_action( 'rest_api_init', $plugin_api, 'register_routes' );
     }
 
     /**
@@ -196,6 +201,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'init', $plugin_public, 'process_checkout' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_return' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_gcash_return' );
+        $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_subscription_return' );
         $this->loader->add_action( 'init', $plugin_public, 'process_affiliate_registration' );
         $this->loader->add_filter( 'the_content', $plugin_public, 'filter_the_content' );
     }
