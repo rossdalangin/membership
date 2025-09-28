@@ -207,9 +207,17 @@ class WMP_Shortcodes {
 
             foreach ( $subscriptions as $subscription ) {
                 $plan_name = get_the_title( $subscription->plan_id );
+                $status_text = esc_html( ucfirst( $subscription->status ) );
+
+                // Check for and display trial information
+                if ( 'active' === $subscription->status && ! empty( $subscription->trial_end ) && strtotime( $subscription->trial_end ) > time() ) {
+                    $trial_end_date = date_i18n( get_option( 'date_format' ), strtotime( $subscription->trial_end ) );
+                    $status_text = sprintf( __( 'On Trial (ends %s)', 'wordpress-membership-pro' ), $trial_end_date );
+                }
+
                 $output .= '<tr>';
                 $output .= '<td>' . esc_html( $plan_name ) . '</td>';
-                $output .= '<td>' . esc_html( ucfirst( $subscription->status ) ) . '</td>';
+                $output .= '<td>' . $status_text . '</td>';
                 $output .= '<td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $subscription->start_date ) ) ) . '</td>';
                 $output .= '</tr>';
             }

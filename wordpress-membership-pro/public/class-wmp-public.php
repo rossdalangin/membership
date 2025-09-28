@@ -351,6 +351,13 @@ class WMP_Public {
             'gateway_subscription_id' => $paypal_subscription_id,
         );
 
+        // Check for and calculate trial end date
+        $trial_days = get_post_meta( $plan_id, '_wmp_trial_days', true );
+        if ( ! empty( $trial_days ) && absint( $trial_days ) > 0 ) {
+            $trial_end_date = date( 'Y-m-d H:i:s', strtotime( '+' . absint( $trial_days ) . ' days' ) );
+            $subscription_data['trial_end'] = $trial_end_date;
+        }
+
         $this->subscriptions_handler->create_subscription( $subscription_data );
 
         // Redirect to a success page, informing the user that the subscription is being finalized.

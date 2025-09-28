@@ -247,29 +247,53 @@ class WMP_Gateway_Paypal {
             $billing_frequency = get_post_meta( $plan_id, '_wmp_billing_frequency', true );
             $billing_period = get_post_meta( $plan_id, '_wmp_billing_period', true );
             $price = get_post_meta( $plan_id, '_wmp_price', true );
+            $trial_days = get_post_meta( $plan_id, '_wmp_trial_days', true );
+
+            $billing_cycles = [];
+            $sequence = 1;
+
+            // Add trial period if it exists
+            if ( ! empty( $trial_days ) && absint( $trial_days ) > 0 ) {
+                $billing_cycles[] = [
+                    'frequency'      => [
+                        'interval_unit'  => 'DAY',
+                        'interval_count' => absint( $trial_days ),
+                    ],
+                    'tenure_type'    => 'TRIAL',
+                    'sequence'       => $sequence++,
+                    'total_cycles'   => 1,
+                    'pricing_scheme' => [
+                        'fixed_price' => [
+                            'value'         => '0.00',
+                            'currency_code' => 'USD',
+                        ],
+                    ],
+                ];
+            }
+
+            // Add regular billing cycle
+            $billing_cycles[] = [
+                'frequency'      => [
+                    'interval_unit'  => strtoupper( $billing_period ),
+                    'interval_count' => absint( $billing_frequency ),
+                ],
+                'tenure_type'    => 'REGULAR',
+                'sequence'       => $sequence,
+                'total_cycles'   => 0, // 0 for infinite
+                'pricing_scheme' => [
+                    'fixed_price' => [
+                        'value'         => $price,
+                        'currency_code' => 'USD',
+                    ],
+                ],
+            ];
 
             $plan_data = array(
                 'product_id'        => $product_id,
                 'name'              => $plan->post_title,
                 'description'       => wp_strip_all_tags( $plan->post_content ),
                 'status'            => 'ACTIVE',
-                'billing_cycles'    => array(
-                    array(
-                        'frequency' => array(
-                            'interval_unit' => strtoupper( $billing_period ),
-                            'interval_count' => absint( $billing_frequency ),
-                        ),
-                        'tenure_type'   => 'REGULAR',
-                        'sequence'      => 1,
-                        'total_cycles'  => 0, // 0 for infinite
-                        'pricing_scheme' => array(
-                            'fixed_price' => array(
-                                'value'         => $price,
-                                'currency_code' => 'USD',
-                            ),
-                        ),
-                    ),
-                ),
+                'billing_cycles'    => $billing_cycles,
                 'payment_preferences' => array(
                     'auto_bill_outstanding' => true,
                     'payment_failure_threshold' => 3,
