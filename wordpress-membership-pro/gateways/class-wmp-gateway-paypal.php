@@ -143,7 +143,7 @@ class WMP_Gateway_Paypal {
                 ),
             ),
             'application_context' => array(
-                'return_url' => add_query_arg( [ 'wmp_action' => 'paypal_return', 'plan_id' => $plan_id ], home_url( '/thank-you' ) ),
+                'return_url' => add_query_arg( 'wmp_action', 'paypal_return', home_url( '/thank-you' ) ),
                 'cancel_url' => get_permalink( $data['checkout_page_id'] ), // Redirect back to checkout on cancel
             ),
         );
@@ -166,8 +166,12 @@ class WMP_Gateway_Paypal {
         if ( isset( $body['links'] ) ) {
             foreach ( $body['links'] as $link ) {
                 if ( 'approve' === $link['rel'] ) {
-                    // Store the order ID in a transient to verify it on return
-                    set_transient( 'wmp_paypal_order_id_' . $body['id'], $body['id'], HOUR_IN_SECONDS );
+                    // Store the order ID and plan ID in a transient to verify it on return.
+                    $transient_data = [
+                        'order_id' => $body['id'],
+                        'plan_id'  => $plan_id,
+                    ];
+                    set_transient( 'wmp_paypal_order_' . $body['id'], $transient_data, HOUR_IN_SECONDS );
                     wp_redirect( $link['href'] );
                     exit;
                 }

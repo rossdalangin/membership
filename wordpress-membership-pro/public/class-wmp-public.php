@@ -263,33 +263,33 @@ class WMP_Public {
             return;
         }
 
-        if ( ! isset( $_GET['token'] ) || ! isset( $_GET['PayerID'] ) ) {
+        if ( ! isset( $_GET['token'] ) ) {
             return;
         }
 
         $order_id = sanitize_text_field( $_GET['token'] );
 
         // Verify the transient to make sure this is a legitimate return.
-        $transient_key = 'wmp_paypal_order_id_' . $order_id;
-        $paypal_order_id = get_transient( $transient_key );
+        $transient_key = 'wmp_paypal_order_' . $order_id;
+        $transient_data = get_transient( $transient_key );
 
-        if ( false === $paypal_order_id || $paypal_order_id !== $order_id ) {
+        if ( false === $transient_data || ! is_array( $transient_data ) || $transient_data['order_id'] !== $order_id ) {
             wp_die( 'Invalid PayPal order. Please try again.' );
         }
 
         // The transient is valid, so we can delete it now.
         delete_transient( $transient_key );
 
+        $plan_id = $transient_data['plan_id'];
         $gateway = $this->gateways_manager->get_gateway( 'paypal' );
         $response = $gateway->execute_payment( $order_id );
 
         // If payment is completed, create the subscription.
         if ( $response && isset( $response['status'] ) && 'COMPLETED' === $response['status'] ) {
-            $plan_id = isset( $_GET['plan_id'] ) ? absint( $_GET['plan_id'] ) : 0;
             $user_id = get_current_user_id();
 
-            if ( ! $user_id || ! $plan_id ) {
-                wp_die( __( 'Error: Missing user or plan information during payment processing.', 'wordpress-membership-pro' ) );
+            if ( ! $user_id ) {
+                wp_die( __( 'Error: Missing user information during payment processing.', 'wordpress-membership-pro' ) );
             }
 
             // Get the transaction ID from the PayPal response.
@@ -304,7 +304,7 @@ class WMP_Public {
                 'status'                  => 'active',
                 'start_date'              => current_time( 'mysql' ),
                 'gateway'                 => 'paypal',
-                'gateway_subscription_id' => $transaction_id, // For one-time payments, the transaction ID is sufficient.
+                'gateway_subscription_id' => $transaction_id,
             );
 
             $this->subscriptions_handler->create_subscription( $subscription_data );
