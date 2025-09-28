@@ -74,11 +74,23 @@ class WMP_Admin {
     }
 
     /**
-     * Add the settings page to the admin menu.
+     * Add the settings and subscriptions pages to the admin menu.
      *
      * @since    1.0.0
      */
-    public function add_settings_menu() {
+    public function add_admin_menus() {
+        // Subscriptions Page
+        add_menu_page(
+            __( 'Subscriptions', 'wordpress-membership-pro' ),
+            __( 'Subscriptions', 'wordpress-membership-pro' ),
+            'manage_options',
+            'wmp-subscriptions',
+            array( $this, 'render_subscriptions_page' ),
+            'dashicons-money-alt',
+            25
+        );
+
+        // Settings Submenu Page
         add_submenu_page(
             'edit.php?post_type=wmp_membership_plan',
             __( 'Membership Settings', 'wordpress-membership-pro' ),
@@ -87,6 +99,97 @@ class WMP_Admin {
             'wmp-settings',
             array( $this, 'render_settings_page' )
         );
+    }
+
+    /**
+     * Render the subscriptions list table page.
+     *
+     * @since    1.0.0
+     */
+    public function render_subscriptions_page() {
+        $subscriptions_list_table = new WMP_Subscriptions_List_Table();
+        $subscriptions_list_table->prepare_items();
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline"><?php echo esc_html( get_admin_page_title() ); ?></h1>
+            <?php $this->display_admin_notices(); ?>
+            <form method="post">
+                <?php
+                $subscriptions_list_table->display();
+                ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    /**
+     * Process the subscription list table actions.
+     *
+     * @since    1.0.0
+     */
+    public function process_subscription_actions() {
+        if ( ! isset( $_GET['page'] ) || 'wmp-subscriptions' !== $_GET['page'] ) {
+            return;
+        }
+
+        if ( ! isset( $_GET['action'] ) || ! isset( $_GET['_wpnonce'] ) ) {
+            return;
+        }
+
+        if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_subscription_action_nonce' ) ) {
+            wp_die( 'Security check failed.' );
+        }
+
+        $action = sanitize_key( $_GET['action'] );
+        $subscription_id = absint( $_GET['subscription'] );
+        $subscriptions_handler = new WMP_Subscriptions();
+        $redirect_url = admin_url( 'admin.php?page=wmp-subscriptions' );
+
+        switch ( $action ) {
+            case 'activate':
+                $subscriptions_handler->update_status( $subscription_id, 'active' );
+                $redirect_url = add_query_arg( 'wmp_message', 'activated', $redirect_url );
+                break;
+            case 'cancel':
+                $subscriptions_handler->update_status( $subscription_id, 'cancelled' );
+                $redirect_url = add_query_arg( 'wmp_message', 'cancelled', $redirect_url );
+                break;
+            case 'delete':
+                $subscriptions_handler->delete_subscription( $subscription_id );
+                $redirect_url = add_query_arg( 'wmp_message', 'deleted', $redirect_url );
+                break;
+        }
+
+        wp_redirect( $redirect_url );
+        exit;
+    }
+
+    /**
+     * Display admin notices.
+     *
+     * @since    1.0.0
+     */
+    private function display_admin_notices() {
+        if ( ! isset( $_GET['wmp_message'] ) ) {
+            return;
+        }
+
+        $message = '';
+        switch ( sanitize_key( $_GET['wmp_message'] ) ) {
+            case 'activated':
+                $message = __( 'Subscription activated successfully.', 'wordpress-membership-pro' );
+                break;
+            case 'cancelled':
+                $message = __( 'Subscription cancelled successfully.', 'wordpress-membership-pro' );
+                break;
+            case 'deleted':
+                $message = __( 'Subscription deleted successfully.', 'wordpress-membership-pro' );
+                break;
+        }
+
+        if ( ! empty( $message ) ) {
+            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $message ) . '</p></div>';
+        }
     }
 
     /**

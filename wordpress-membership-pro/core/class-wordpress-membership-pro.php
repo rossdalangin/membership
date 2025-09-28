@@ -93,6 +93,7 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'includes/class-wmp-loader.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-cpts.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-admin.php';
+        require_once WMP_PLUGIN_DIR . 'admin/class-wmp-subscriptions-list-table.php';
         require_once WMP_PLUGIN_DIR . 'public/class-wmp-public.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-subscriptions.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-capabilities.php';
@@ -137,8 +138,9 @@ class WordPress_Membership_Pro {
         $plugin_admin = new WMP_Admin( $this->get_plugin_name(), $this->get_version() );
         $this->loader->add_action( 'add_meta_boxes', $plugin_admin, 'add_meta_boxes' );
         $this->loader->add_action( 'save_post', $plugin_admin, 'save_meta_boxes' );
-        $this->loader->add_action( 'admin_menu', $plugin_admin, 'add_settings_menu' );
+        $this->loader->add_action( 'admin_menu', $plugin_admin, 'add_admin_menus' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'register_settings' );
+        $this->loader->add_action( 'admin_init', $plugin_admin, 'process_subscription_actions' );
     }
 
     /**

@@ -152,4 +152,27 @@ class WMP_Subscriptions {
 
         return true;
     }
+
+    /**
+     * Delete a subscription.
+     *
+     * @since   1.0.0
+     * @param   int $subscription_id   The ID of the subscription to delete.
+     * @return  bool                   True on success, false on failure.
+     */
+    public function delete_subscription( $subscription_id ) {
+        global $wpdb;
+
+        $subscription = $this->get_subscription( $subscription_id );
+        if ( ! $subscription ) {
+            return false;
+        }
+
+        // First, fire a cancellation hook to remove capabilities if the subscription was active.
+        if ( 'active' === $subscription->status ) {
+            do_action('wmp_subscription_cancelled', $subscription_id, $subscription->user_id);
+        }
+
+        return $wpdb->delete( $this->table_name, array( 'id' => $subscription_id ), array( '%d' ) );
+    }
 }
