@@ -20,6 +20,25 @@
 class WMP_Shortcodes {
 
     /**
+     * The subscription handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Subscriptions
+     */
+    private $subscriptions_handler;
+
+    /**
+     * Initialize the class and set its properties.
+     *
+     * @since    1.0.0
+     * @param    WMP_Subscriptions    $subscriptions_handler    The subscription handler instance.
+     */
+    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
+        $this->subscriptions_handler = $subscriptions_handler;
+    }
+
+    /**
      * Renders the [wmp_plans] shortcode.
      *
      * Displays a grid of membership plans fetched from the CPT.
@@ -127,13 +146,42 @@ class WMP_Shortcodes {
         }
 
         $current_user = wp_get_current_user();
+        $subscriptions = $this->subscriptions_handler->get_user_subscriptions( $current_user->ID );
+
         $output = '<div class="wmp-account-dashboard">';
+
+        if ( isset( $_GET['wmp_message'] ) && 'purchase_success' === $_GET['wmp_message'] ) {
+            $output .= '<div class="wmp-message success"><p>' . __( 'Thank you for your purchase! Your new plan is now active.', 'wordpress-membership-pro' ) . '</p></div>';
+        }
+
         $output .= '<h2>' . __( 'My Account', 'wordpress-membership-pro' ) . '</h2>';
         $output .= '<p>' . sprintf( __( 'Welcome back, %s!', 'wordpress-membership-pro' ), esc_html( $current_user->display_name ) ) . '</p>';
 
-        // These sections are placeholders for now and will be built out in future steps.
-        $output .= '<h3>' . __( 'My Subscription', 'wordpress-membership-pro' ) . '</h3>';
-        $output .= '<p>' . __( 'Your subscription details will appear here.', 'wordpress-membership-pro' ) . '</p>';
+        $output .= '<h3>' . __( 'My Subscriptions', 'wordpress-membership-pro' ) . '</h3>';
+
+        if ( ! empty( $subscriptions ) ) {
+            $output .= '<table class="wmp-subscriptions-table">';
+            $output .= '<thead><tr>';
+            $output .= '<th>' . __( 'Plan', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '<th>' . __( 'Status', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '<th>' . __( 'Start Date', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '</tr></thead>';
+            $output .= '<tbody>';
+
+            foreach ( $subscriptions as $subscription ) {
+                $plan_name = get_the_title( $subscription->plan_id );
+                $output .= '<tr>';
+                $output .= '<td>' . esc_html( $plan_name ) . '</td>';
+                $output .= '<td>' . esc_html( ucfirst( $subscription->status ) ) . '</td>';
+                $output .= '<td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $subscription->start_date ) ) ) . '</td>';
+                $output .= '</tr>';
+            }
+
+            $output .= '</tbody>';
+            $output .= '</table>';
+        } else {
+            $output .= '<p>' . __( 'You do not have any subscriptions.', 'wordpress-membership-pro' ) . '</p>';
+        }
 
         $output .= '<h3>' . __( 'Billing History', 'wordpress-membership-pro' ) . '</h3>';
         $output .= '<p>' . __( 'Your billing history will appear here.', 'wordpress-membership-pro' ) . '</p>';

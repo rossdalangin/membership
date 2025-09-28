@@ -62,7 +62,7 @@ class WMP_Public {
         $this->content_protection = new WMP_Content_Protection();
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-shortcodes.php';
-        $this->shortcodes = new WMP_Shortcodes();
+        $this->shortcodes = new WMP_Shortcodes( $this->subscriptions_handler );
     }
 
     /**
