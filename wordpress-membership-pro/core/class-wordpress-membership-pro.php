@@ -98,6 +98,8 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-subscriptions.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-capabilities.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-gateways.php';
+        require_once WMP_PLUGIN_DIR . 'core/class-wmp-emails.php';
+        require_once WMP_PLUGIN_DIR . 'core/class-wmp-email-hooks.php';
 
         $this->loader = new WMP_Loader();
     }
@@ -119,9 +121,16 @@ class WordPress_Membership_Pro {
      * @access   private
      */
     private function define_core_hooks() {
+        // Capability hooks
         $plugin_capabilities = new WMP_Capabilities( $this->subscriptions_handler );
         $this->loader->add_action( 'wmp_subscription_activated', $plugin_capabilities, 'on_subscription_activated', 10, 2 );
         $this->loader->add_action( 'wmp_subscription_cancelled', $plugin_capabilities, 'on_subscription_deactivated', 10, 2 );
+
+        // Email hooks
+        $plugin_email_hooks = new WMP_Email_Hooks();
+        $this->loader->add_action( 'wmp_subscription_created', $plugin_email_hooks, 'on_subscription_created', 10, 3 );
+        $this->loader->add_action( 'wmp_subscription_activated', $plugin_email_hooks, 'on_subscription_activated', 10, 2 );
+        $this->loader->add_action( 'wmp_subscription_cancelled', $plugin_email_hooks, 'on_subscription_cancelled', 10, 2 );
     }
 
     /**

@@ -336,6 +336,54 @@ class WMP_Admin {
                 'key' => 'gcash_secret_key',
             )
         );
+
+        // Emails Section
+        add_settings_section(
+            'wmp_settings_emails',
+            __( 'Email Notifications', 'wordpress-membership-pro' ),
+            '__return_false',
+            'wmp-settings'
+        );
+
+        add_settings_field(
+            'wmp_email_subscription_activated',
+            __( 'Subscription Activated Email', 'wordpress-membership-pro' ),
+            array( $this, 'render_checkbox_input' ),
+            'wmp-settings',
+            'wmp_settings_emails',
+            array(
+                'label_for' => 'wmp_email_subscription_activated',
+                'option_name' => 'wmp_settings',
+                'key' => 'email_subscription_activated_enabled',
+                'description' => __( 'Send a notification to the user when their subscription is activated.', 'wordpress-membership-pro' ),
+            )
+        );
+        add_settings_field(
+            'wmp_email_subscription_cancelled',
+            __( 'Subscription Cancelled Email', 'wordpress-membership-pro' ),
+            array( $this, 'render_checkbox_input' ),
+            'wmp-settings',
+            'wmp_settings_emails',
+            array(
+                'label_for' => 'wmp_email_subscription_cancelled',
+                'option_name' => 'wmp_settings',
+                'key' => 'email_subscription_cancelled_enabled',
+                'description' => __( 'Send a notification to the user when their subscription is cancelled.', 'wordpress-membership-pro' ),
+            )
+        );
+        add_settings_field(
+            'wmp_email_order_on_hold',
+            __( 'Order On-Hold Email', 'wordpress-membership-pro' ),
+            array( $this, 'render_checkbox_input' ),
+            'wmp-settings',
+            'wmp_settings_emails',
+            array(
+                'label_for' => 'wmp_email_order_on_hold',
+                'option_name' => 'wmp_settings',
+                'key' => 'email_order_on_hold_enabled',
+                'description' => __( 'Send a notification for offline orders that are awaiting payment.', 'wordpress-membership-pro' ),
+            )
+        );
     }
 
     /**
@@ -362,6 +410,21 @@ class WMP_Admin {
         echo '<textarea id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '" rows="5" class="large-text">' . esc_textarea( $value ) . '</textarea>';
         if ( ! empty( $args['description'] ) ) {
             echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
+        }
+    }
+
+    /**
+     * Render a generic checkbox input field for a settings page.
+     *
+     * @since    1.0.0
+     * @param    array    $args    The arguments for the field.
+     */
+    public function render_checkbox_input( $args ) {
+        $options = get_option( $args['option_name'] );
+        $checked = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : 0;
+        echo '<label><input type="checkbox" id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '" value="1" ' . checked( 1, $checked, false ) . ' /> ';
+        if ( ! empty( $args['description'] ) ) {
+            echo esc_html( $args['description'] ) . '</label>';
         }
     }
 
