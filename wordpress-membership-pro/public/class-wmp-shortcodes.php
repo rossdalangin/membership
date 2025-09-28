@@ -29,13 +29,24 @@ class WMP_Shortcodes {
     private $subscriptions_handler;
 
     /**
+     * The gateways manager.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Gateways
+     */
+    private $gateways_manager;
+
+    /**
      * Initialize the class and set its properties.
      *
      * @since    1.0.0
      * @param    WMP_Subscriptions    $subscriptions_handler    The subscription handler instance.
+     * @param    WMP_Gateways         $gateways_manager         The gateways manager instance.
      */
-    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
+    public function __construct( WMP_Subscriptions $subscriptions_handler, WMP_Gateways $gateways_manager ) {
         $this->subscriptions_handler = $subscriptions_handler;
+        $this->gateways_manager      = $gateways_manager;
     }
 
     /**
@@ -116,15 +127,30 @@ class WMP_Shortcodes {
         }
 
         $price = get_post_meta( $plan_id, '_wmp_price', true );
+        $gateways = $this->gateways_manager->get_gateways();
 
         $output = '<div class="wmp-checkout-form">';
         $output .= '<h3>' . sprintf( __( 'Confirm Your Purchase: %s', 'wordpress-membership-pro' ), esc_html( $plan->post_title ) ) . '</h3>';
         $output .= '<p><strong>' . __( 'Price:', 'wordpress-membership-pro' ) . '</strong> $' . esc_html( $price ) . '</p>';
+
         $output .= '<form id="wmp-checkout" action="" method="post">';
+
+        if ( ! empty( $gateways ) ) {
+            $output .= '<h4>' . __( 'Select Payment Method', 'wordpress-membership-pro' ) . '</h4>';
+            $output .= '<ul class="wmp-payment-gateways">';
+            foreach ( $gateways as $gateway ) {
+                $output .= '<li>';
+                $output .= '<input type="radio" name="wmp_payment_gateway" id="wmp_gateway_' . esc_attr( $gateway->id ) . '" value="' . esc_attr( $gateway->id ) . '" checked="checked"/>';
+                $output .= '<label for="wmp_gateway_' . esc_attr( $gateway->id ) . '">' . esc_html( $gateway->title ) . '</label>';
+                $output .= '</li>';
+            }
+            $output .= '</ul>';
+        }
+
         $output .= '<input type="hidden" name="wmp_plan_id" value="' . esc_attr( $plan_id ) . '" />';
         $output .= wp_nonce_field( 'wmp_checkout_nonce', '_wpnonce', true, false );
         $output .= '<input type="hidden" name="wmp_action" value="process_checkout" />';
-        $output .= '<input type="submit" value="' . __( 'Confirm Purchase (Simulated)', 'wordpress-membership-pro' ) . '" />';
+        $output .= '<input type="submit" value="' . __( 'Confirm Purchase', 'wordpress-membership-pro' ) . '" />';
         $output .= '</form>';
         $output .= '</div>';
 
@@ -188,6 +214,49 @@ class WMP_Shortcodes {
 
         $output .= '</div>';
 
+        return $output;
+    }
+
+    /**
+     * Renders the [wmp_thank_you] shortcode.
+     *
+     * Displays a confirmation message and payment instructions after checkout.
+     *
+     * @since    1.0.0
+     * @param    array     $atts    Shortcode attributes.
+     * @return   string    The shortcode output.
+     */
+    public function render_thank_you_shortcode( $atts ) {
+        if ( ! is_user_logged_in() ) {
+            return __( 'Invalid request.', 'wordpress-membership-pro' );
+        }
+
+        $output = '<div class="wmp-thank-you">';
+
+        if ( ! isset( $_GET['wmp_message'] ) || 'order_received' !== $_GET['wmp_message'] ) {
+            $output .= '<p>' . __( 'Thank you for your purchase!', 'wordpress-membership-pro' ) . '</p>';
+            return $output . '</div>';
+        }
+
+        $subscription = $this->subscriptions_handler->get_user_latest_subscription( get_current_user_id() );
+
+        if ( ! $subscription ) {
+            return __( 'Could not find your order details.', 'wordpress-membership-pro' );
+        }
+
+        $output .= '<h2>' . __( 'Thank You. Your Order Has Been Received.', 'wordpress-membership-pro' ) . '</h2>';
+
+        if ( 'offline' === $subscription->gateway ) {
+            $settings = get_option( 'wmp_settings' );
+            $instructions = isset( $settings['offline_instructions'] ) ? $settings['offline_instructions'] : '';
+
+            if ( ! empty( $instructions ) ) {
+                $output .= '<h3>' . __( 'Payment Instructions', 'wordpress-membership-pro' ) . '</h3>';
+                $output .= '<div class="wmp-offline-instructions">' . wpautop( wp_kses_post( $instructions ) ) . '</div>';
+            }
+        }
+
+        $output .= '</div>';
         return $output;
     }
 }

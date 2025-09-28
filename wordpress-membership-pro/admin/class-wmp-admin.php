@@ -74,6 +74,127 @@ class WMP_Admin {
     }
 
     /**
+     * Add the settings page to the admin menu.
+     *
+     * @since    1.0.0
+     */
+    public function add_settings_menu() {
+        add_submenu_page(
+            'edit.php?post_type=wmp_membership_plan',
+            __( 'Membership Settings', 'wordpress-membership-pro' ),
+            __( 'Settings', 'wordpress-membership-pro' ),
+            'manage_options',
+            'wmp-settings',
+            array( $this, 'render_settings_page' )
+        );
+    }
+
+    /**
+     * Render the settings page.
+     *
+     * @since    1.0.0
+     */
+    public function render_settings_page() {
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+            <form action="options.php" method="post">
+                <?php
+                settings_fields( 'wmp_settings_group' );
+                do_settings_sections( 'wmp-settings' );
+                submit_button();
+                ?>
+            </form>
+        </div>
+        <?php
+    }
+
+    /**
+     * Register the settings and their fields.
+     *
+     * @since    1.0.0
+     */
+    public function register_settings() {
+        register_setting( 'wmp_settings_group', 'wmp_settings' );
+
+        // Gateways Section
+        add_settings_section(
+            'wmp_settings_gateways',
+            __( 'Payment Gateways', 'wordpress-membership-pro' ),
+            '__return_false', // No callback needed for the section description
+            'wmp-settings'
+        );
+
+        // Stripe Settings
+        add_settings_field(
+            'wmp_stripe_publishable_key',
+            __( 'Stripe Publishable Key', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_stripe_publishable_key',
+                'option_name' => 'wmp_settings',
+                'key' => 'stripe_publishable_key',
+            )
+        );
+        add_settings_field(
+            'wmp_stripe_secret_key',
+            __( 'Stripe Secret Key', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_stripe_secret_key',
+                'option_name' => 'wmp_settings',
+                'key' => 'stripe_secret_key',
+            )
+        );
+
+        // Offline Payment Settings
+        add_settings_field(
+            'wmp_offline_instructions',
+            __( 'Offline Payment Instructions', 'wordpress-membership-pro' ),
+            array( $this, 'render_textarea_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_offline_instructions',
+                'option_name' => 'wmp_settings',
+                'key' => 'offline_instructions',
+                'description' => __( 'These instructions will be shown to users after they choose the offline payment method.', 'wordpress-membership-pro' ),
+            )
+        );
+    }
+
+    /**
+     * Render a generic text input field for a settings page.
+     *
+     * @since    1.0.0
+     * @param    array    $args    The arguments for the field.
+     */
+    public function render_text_input( $args ) {
+        $options = get_option( $args['option_name'] );
+        $value = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
+        echo '<input type="text" id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
+    }
+
+    /**
+     * Render a generic textarea input field for a settings page.
+     *
+     * @since    1.0.0
+     * @param    array    $args    The arguments for the field.
+     */
+    public function render_textarea_input( $args ) {
+        $options = get_option( $args['option_name'] );
+        $value = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
+        echo '<textarea id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '" rows="5" class="large-text">' . esc_textarea( $value ) . '</textarea>';
+        if ( ! empty( $args['description'] ) ) {
+            echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
+        }
+    }
+
+    /**
      * Render the meta box for plan details.
      *
      * @since    1.0.0

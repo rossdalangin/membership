@@ -79,6 +79,18 @@ class WMP_Subscriptions {
     }
 
     /**
+     * Get a user's most recent subscription.
+     *
+     * @since   1.0.0
+     * @param   int $user_id    The ID of the user.
+     * @return  object|null     The latest subscription object or null if none.
+     */
+    public function get_user_latest_subscription( $user_id ) {
+        global $wpdb;
+        return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table_name} WHERE user_id = %d ORDER BY created_at DESC LIMIT 1", $user_id ) );
+    }
+
+    /**
      * Create a new subscription.
      *
      * @since   1.0.0

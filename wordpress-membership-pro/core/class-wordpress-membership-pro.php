@@ -53,6 +53,15 @@ class WordPress_Membership_Pro {
     protected $subscriptions_handler;
 
     /**
+     * The gateway manager instance.
+     *
+     * @since    1.0.0
+     * @access   protected
+     * @var      WMP_Gateways    $gateways_manager    Handles payment gateways.
+     */
+    protected $gateways_manager;
+
+    /**
      * Define the core functionality of the plugin.
      *
      * Set the plugin name and the plugin version that can be used throughout the plugin.
@@ -67,6 +76,7 @@ class WordPress_Membership_Pro {
 
         $this->load_dependencies();
         $this->subscriptions_handler = new WMP_Subscriptions();
+        $this->gateways_manager = new WMP_Gateways();
         $this->set_locale();
         $this->define_core_hooks();
         $this->define_admin_hooks();
@@ -86,6 +96,7 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'public/class-wmp-public.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-subscriptions.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-capabilities.php';
+        require_once WMP_PLUGIN_DIR . 'core/class-wmp-gateways.php';
 
         $this->loader = new WMP_Loader();
     }
@@ -126,6 +137,8 @@ class WordPress_Membership_Pro {
         $plugin_admin = new WMP_Admin( $this->get_plugin_name(), $this->get_version() );
         $this->loader->add_action( 'add_meta_boxes', $plugin_admin, 'add_meta_boxes' );
         $this->loader->add_action( 'save_post', $plugin_admin, 'save_meta_boxes' );
+        $this->loader->add_action( 'admin_menu', $plugin_admin, 'add_settings_menu' );
+        $this->loader->add_action( 'admin_init', $plugin_admin, 'register_settings' );
     }
 
     /**
@@ -136,7 +149,7 @@ class WordPress_Membership_Pro {
      * @access   private
      */
     private function define_public_hooks() {
-        $plugin_public = new WMP_Public( $this->get_plugin_name(), $this->get_version(), $this->subscriptions_handler );
+        $plugin_public = new WMP_Public( $this->get_plugin_name(), $this->get_version(), $this->subscriptions_handler, $this->gateways_manager );
 
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );

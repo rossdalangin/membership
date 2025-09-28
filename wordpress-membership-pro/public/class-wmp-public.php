@@ -47,22 +47,25 @@ class WMP_Public {
     private $shortcodes;
 
     /**
-     * Initialize the class and set its properties.
+     * The gateways manager.
      *
-     * @since    1.0.0
-     * @param      string    $plugin_name       The name of the plugin.
-     * @param      string    $version    The version of this plugin.
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Gateways
      */
-    public function __construct( $plugin_name, $version, $subscriptions_handler ) {
+    private $gateways_manager;
+
+    public function __construct( $plugin_name, $version, $subscriptions_handler, $gateways_manager ) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
         $this->subscriptions_handler = $subscriptions_handler;
+        $this->gateways_manager = $gateways_manager;
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-content-protection.php';
         $this->content_protection = new WMP_Content_Protection();
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-shortcodes.php';
-        $this->shortcodes = new WMP_Shortcodes( $this->subscriptions_handler );
+        $this->shortcodes = new WMP_Shortcodes( $this->subscriptions_handler, $this->gateways_manager );
     }
 
     /**
@@ -88,24 +91,31 @@ class WMP_Public {
             wp_die( 'Invalid plan ID.' );
         }
 
+        $gateway_id = isset( $_POST['wmp_payment_gateway'] ) ? sanitize_text_field( $_POST['wmp_payment_gateway'] ) : '';
+        if ( empty( $gateway_id ) ) {
+            wp_die( __( 'Please select a payment method.', 'wordpress-membership-pro' ) );
+        }
+
         $user_id = get_current_user_id();
 
-        // This is where a real payment gateway would be called.
-        // For our simulation, we'll directly create and activate the subscription.
+        // For offline payments, we set the status to on-hold. For others, we'd process payment.
+        $status = ( 'offline' === $gateway_id ) ? 'on-hold' : 'pending';
+
         $subscription_data = array(
             'user_id'                 => $user_id,
             'plan_id'                 => $plan_id,
-            'status'                  => 'active',
+            'status'                  => $status,
             'start_date'              => current_time( 'mysql' ),
-            'gateway'                 => 'simulated',
-            'gateway_subscription_id' => 'sim-' . uniqid(),
+            'gateway'                 => $gateway_id,
+            'gateway_subscription_id' => '', // No subscription ID from gateway for one-time offline payment
         );
 
         $this->subscriptions_handler->create_subscription( $subscription_data );
 
-        // Redirect to the account page with a success message.
+        // Redirect to the thank you page.
         // A real plugin would have a setting for this page.
-        wp_redirect( home_url( '/account?wmp_message=purchase_success' ) );
+        $redirect_url = add_query_arg( 'wmp_message', 'order_received', home_url( '/thank-you' ) );
+        wp_redirect( $redirect_url );
         exit;
     }
 
@@ -119,6 +129,7 @@ class WMP_Public {
         add_shortcode( 'wmp_plans', array( $this->shortcodes, 'render_plans_shortcode' ) );
         add_shortcode( 'wmp_account', array( $this->shortcodes, 'render_account_shortcode' ) );
         add_shortcode( 'wmp_checkout', array( $this->shortcodes, 'render_checkout_shortcode' ) );
+        add_shortcode( 'wmp_thank_you', array( $this->shortcodes, 'render_thank_you_shortcode' ) );
     }
 
     /**
