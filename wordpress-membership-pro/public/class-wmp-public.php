@@ -96,27 +96,98 @@ class WMP_Public {
             wp_die( __( 'Please select a payment method.', 'wordpress-membership-pro' ) );
         }
 
-        $user_id = get_current_user_id();
+        $gateway = $this->gateways_manager->get_gateway( $gateway_id );
+        if ( ! $gateway ) {
+            wp_die( 'Invalid payment gateway.' );
+        }
 
-        // For offline payments, we set the status to on-hold. For others, we'd process payment.
-        $status = ( 'offline' === $gateway_id ) ? 'on-hold' : 'pending';
+        // For offline payments, we create the subscription directly with an on-hold status.
+        if ( 'offline' === $gateway_id ) {
+            $subscription_data = array(
+                'user_id'                 => get_current_user_id(),
+                'plan_id'                 => $plan_id,
+                'status'                  => 'on-hold',
+                'start_date'              => current_time( 'mysql' ),
+                'gateway'                 => 'offline',
+                'gateway_subscription_id' => '',
+            );
+            $this->subscriptions_handler->create_subscription( $subscription_data );
+            $redirect_url = add_query_arg( 'wmp_message', 'order_received', home_url( '/thank-you' ) );
+            wp_redirect( $redirect_url );
+            exit;
+        }
 
-        $subscription_data = array(
-            'user_id'                 => $user_id,
-            'plan_id'                 => $plan_id,
-            'status'                  => $status,
-            'start_date'              => current_time( 'mysql' ),
-            'gateway'                 => $gateway_id,
-            'gateway_subscription_id' => '', // No subscription ID from gateway for one-time offline payment
-        );
+        // For other gateways like PayPal, we call their processing method.
+        $data = [
+            'plan_id'          => $plan_id,
+            'user_id'          => get_current_user_id(),
+            'checkout_page_id' => get_the_ID(),
+        ];
+        $gateway->process_payment( $data );
+    }
 
-        $this->subscriptions_handler->create_subscription( $subscription_data );
+    /**
+     * Handle the user's return from PayPal after approval.
+     *
+     * @since    1.0.0
+     */
+    public function handle_paypal_return() {
+        if ( ! isset( $_GET['wmp_action'] ) || 'paypal_return' !== $_GET['wmp_action'] ) {
+            return;
+        }
 
-        // Redirect to the thank you page.
-        // A real plugin would have a setting for this page.
-        $redirect_url = add_query_arg( 'wmp_message', 'order_received', home_url( '/thank-you' ) );
-        wp_redirect( $redirect_url );
-        exit;
+        if ( ! isset( $_GET['token'] ) || ! isset( $_GET['PayerID'] ) ) {
+            return;
+        }
+
+        $order_id = sanitize_text_field( $_GET['token'] );
+
+        // Verify the transient to make sure this is a legitimate return.
+        $transient_key = 'wmp_paypal_order_id_' . $order_id;
+        $paypal_order_id = get_transient( $transient_key );
+
+        if ( false === $paypal_order_id || $paypal_order_id !== $order_id ) {
+            wp_die( 'Invalid PayPal order. Please try again.' );
+        }
+
+        // The transient is valid, so we can delete it now.
+        delete_transient( $transient_key );
+
+        $gateway = $this->gateways_manager->get_gateway( 'paypal' );
+        $response = $gateway->execute_payment( $order_id );
+
+        // If payment is completed, create the subscription.
+        if ( $response && isset( $response['status'] ) && 'COMPLETED' === $response['status'] ) {
+            $plan_id = isset( $_GET['plan_id'] ) ? absint( $_GET['plan_id'] ) : 0;
+            $user_id = get_current_user_id();
+
+            if ( ! $user_id || ! $plan_id ) {
+                wp_die( __( 'Error: Missing user or plan information during payment processing.', 'wordpress-membership-pro' ) );
+            }
+
+            // Get the transaction ID from the PayPal response.
+            $transaction_id = '';
+            if ( isset( $response['purchase_units'][0]['payments']['captures'][0]['id'] ) ) {
+                $transaction_id = $response['purchase_units'][0]['payments']['captures'][0]['id'];
+            }
+
+            $subscription_data = array(
+                'user_id'                 => $user_id,
+                'plan_id'                 => $plan_id,
+                'status'                  => 'active',
+                'start_date'              => current_time( 'mysql' ),
+                'gateway'                 => 'paypal',
+                'gateway_subscription_id' => $transaction_id, // For one-time payments, the transaction ID is sufficient.
+            );
+
+            $this->subscriptions_handler->create_subscription( $subscription_data );
+
+            // Redirect to a success page.
+            wp_redirect( home_url( '/thank-you?wmp_message=purchase_success' ) );
+            exit;
+        } else {
+            wp_die( __( 'There was an error processing your payment with PayPal. Please try again.', 'wordpress-membership-pro' ) );
+        }
     }
 
     /**

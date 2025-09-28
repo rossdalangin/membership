@@ -268,6 +268,48 @@ class WMP_Admin {
                 'description' => __( 'These instructions will be shown to users after they choose the offline payment method.', 'wordpress-membership-pro' ),
             )
         );
+
+        // PayPal Settings
+        add_settings_field(
+            'wmp_paypal_mode',
+            __( 'PayPal Mode', 'wordpress-membership-pro' ),
+            array( $this, 'render_select_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_paypal_mode',
+                'option_name' => 'wmp_settings',
+                'key' => 'paypal_mode',
+                'options' => array(
+                    'sandbox' => __( 'Sandbox', 'wordpress-membership-pro' ),
+                    'live' => __( 'Live', 'wordpress-membership-pro' ),
+                ),
+            )
+        );
+        add_settings_field(
+            'wmp_paypal_client_id',
+            __( 'PayPal Client ID', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_paypal_client_id',
+                'option_name' => 'wmp_settings',
+                'key' => 'paypal_client_id',
+            )
+        );
+        add_settings_field(
+            'wmp_paypal_secret_key',
+            __( 'PayPal Secret Key', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_paypal_secret_key',
+                'option_name' => 'wmp_settings',
+                'key' => 'paypal_secret_key',
+            )
+        );
     }
 
     /**
@@ -292,6 +334,27 @@ class WMP_Admin {
         $options = get_option( $args['option_name'] );
         $value = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
         echo '<textarea id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '" rows="5" class="large-text">' . esc_textarea( $value ) . '</textarea>';
+        if ( ! empty( $args['description'] ) ) {
+            echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
+        }
+    }
+
+    /**
+     * Render a generic select input field for a settings page.
+     *
+     * @since    1.0.0
+     * @param    array    $args    The arguments for the field.
+     */
+    public function render_select_input( $args ) {
+        $options = get_option( $args['option_name'] );
+        $value = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
+
+        echo '<select id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '">';
+        foreach ( $args['options'] as $option_key => $option_value ) {
+            echo '<option value="' . esc_attr( $option_key ) . '" ' . selected( $value, $option_key, false ) . '>' . esc_html( $option_value ) . '</option>';
+        }
+        echo '</select>';
+
         if ( ! empty( $args['description'] ) ) {
             echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
         }
