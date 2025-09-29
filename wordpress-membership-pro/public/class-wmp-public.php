@@ -484,7 +484,6 @@ class WMP_Public {
 
             $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
 
-            // Log the transaction
             if ( $subscription_id ) {
                 $this->transactions_handler->create_transaction( array(
                     'subscription_id' => $subscription_id,
@@ -589,7 +588,6 @@ class WMP_Public {
 
         $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
 
-        // Log the transaction
         if ( $subscription_id ) {
             $price = get_post_meta( $plan_id, '_wmp_price', true );
             $this->transactions_handler->create_transaction( array(

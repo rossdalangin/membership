@@ -188,17 +188,7 @@ class WordPress_Membership_Pro {
      * @since    1.0.5
      */
     public function register_blocks() {
-        wp_register_script(
-            'wmp-plans-block-editor',
-            WMP_PLUGIN_URL . 'blocks/plans/index.js',
-            array( 'wp-blocks', 'wp-i18n', 'wp-element' ),
-            WMP_VERSION,
-            true
-        );
-
-        register_block_type( WMP_PLUGIN_DIR . 'blocks/plans', array(
-            'editor_script' => 'wmp-plans-block-editor',
-        ) );
+        register_block_type( WMP_PLUGIN_DIR . 'blocks/plans' );
     }
 
     /**

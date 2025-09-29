@@ -487,7 +487,9 @@ class WMP_Shortcodes {
         $affiliate = $this->affiliates_handler->get_affiliate_by_user( $user_id );
 
         if ( ! $affiliate || 'active' !== $affiliate->status ) {
-            return __( 'You are not an active affiliate. You can apply to become one here.', 'wordpress-membership-pro' ); // In a real scenario, we would link to the registration page.
+            // In a real plugin, this URL would be a setting.
+            $registration_url = home_url( '/affiliate-program/' );
+            return __( 'You are not an active affiliate. You can apply to become one <a href="'. esc_url( $registration_url ) .'">here</a>.', 'wordpress-membership-pro' );
         }
 
         $referral_url = add_query_arg( 'ref', $affiliate->id, home_url( '/' ) );

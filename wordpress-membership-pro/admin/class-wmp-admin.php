@@ -331,11 +331,12 @@ class WMP_Admin {
         $transactions_handler = new WMP_Transactions();
         $transactions_handler->refund_transaction( $transaction_id );
 
-        // --- IMPORTANT: GATEWAY INTEGRATION NEEDED ---
-        // The above code only marks the transaction as "refunded" in the database.
-        // For a complete solution, you must also integrate with the relevant payment gateway's API
-        // to process the actual refund. This would involve fetching the transaction details,
-        // identifying the gateway used, and calling a method like `$gateway->process_refund( $transaction_id )`.
+        // --- IMPORTANT: GATEWAY INTEGRATION REQUIRED ---
+        // The above code only marks the transaction as "refunded" in the local database.
+        // For a complete refund solution, you must also integrate with the relevant payment gateway's API
+        // to process the actual financial transaction. This would involve fetching the transaction details,
+        // identifying the gateway used (e.g., 'stripe', 'paypal'), and calling a method like `$gateway->process_refund( $transaction_id )`.
+        // This is a placeholder for that future development.
         // --- END OF IMPORTANT NOTE ---
 
         $redirect_url = add_query_arg( array(
@@ -458,6 +459,17 @@ class WMP_Admin {
         if ( ( 'post-new.php' === $hook || 'post.php' === $hook ) && isset( $post->post_type ) && 'wmp_secure_file' === $post->post_type ) {
             wp_enqueue_media();
             wp_enqueue_script( $this->plugin_name . '-admin', WMP_PLUGIN_URL . 'admin/js/wmp-admin.js', array( 'jquery' ), $this->version, false );
+        }
+
+        // Enqueue block editor script
+        if ( 'post-new.php' === $hook || 'post.php' === $hook ) {
+            wp_enqueue_script(
+                'wmp-plans-block-editor',
+                WMP_PLUGIN_URL . 'blocks/plans/index.js',
+                array( 'wp-blocks', 'wp-i18n', 'wp-element' ),
+                WMP_VERSION,
+                true
+            );
         }
     }
 
