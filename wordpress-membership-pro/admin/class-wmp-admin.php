@@ -267,6 +267,25 @@ class WMP_Admin {
     }
 
     /**
+     * Check if the Stripe PHP library is loaded and display a notice if it is not.
+     *
+     * @since 1.0.1
+     */
+    public function check_stripe_library() {
+        $options = get_option( 'wmp_settings' );
+        $stripe_enabled = ! empty( $options['stripe_publishable_key'] ) && ! empty( $options['stripe_secret_key'] );
+
+        if ( $stripe_enabled && ! class_exists( '\Stripe\Stripe' ) ) {
+            $message = sprintf(
+                // translators: %s is a link to the Stripe PHP library on GitHub.
+                __( '<strong>WordPress Membership Pro:</strong> The Stripe gateway is enabled, but the Stripe PHP library is not installed. Please install it via Composer or include it in your project. You can find the library <a href="%s" target="_blank">here</a>.', 'wordpress-membership-pro' ),
+                'https://github.com/stripe/stripe-php'
+            );
+            echo '<div class="notice notice-error"><p>' . $message . '</p></div>';
+        }
+    }
+
+    /**
      * Render the settings page.
      *
      * @since    1.0.0
@@ -627,6 +646,7 @@ class WMP_Admin {
         wp_nonce_field( 'wmp_save_content_protection', 'wmp_content_protection_nonce' );
 
         $required_plan_id = get_post_meta( $post->ID, '_wmp_required_plan_id', true );
+        $drip_delay = get_post_meta( $post->ID, '_wmp_drip_delay', true );
 
         $plans_query = new WP_Query( array(
             'post_type'      => 'wmp_membership_plan',
@@ -648,6 +668,15 @@ class WMP_Admin {
         }
 
         echo '</select>';
+        echo '</p>';
+
+        echo '<hr/>';
+
+        echo '<h4>' . __( 'Drip Content', 'wordpress-membership-pro' ) . '</h4>';
+        echo '<p>';
+        echo '<label for="wmp_drip_delay">' . __( 'Release Delay (in days)', 'wordpress-membership-pro' ) . '</label><br/>';
+        echo '<input type="number" id="wmp_drip_delay" name="wmp_drip_delay" value="' . esc_attr( $drip_delay ) . '" min="0" step="1" style="width: 100%;" />';
+        echo '<p class="description">' . __( 'Release this content X days after the user registers. Leave blank or 0 for immediate access.', 'wordpress-membership-pro' ) . '</p>';
         echo '</p>';
     }
 
@@ -680,7 +709,10 @@ class WMP_Admin {
         // Save Content Protection meta box
         if ( isset( $_POST['wmp_content_protection_nonce'] ) && wp_verify_nonce( $_POST['wmp_content_protection_nonce'], 'wmp_save_content_protection' ) ) {
             if ( isset( $_POST['wmp_required_plan_id'] ) ) {
-                update_post_meta($post_id, '_wmp_required_plan_id', sanitize_text_field($_POST['wmp_required_plan_id']));
+                update_post_meta( $post_id, '_wmp_required_plan_id', sanitize_text_field( $_POST['wmp_required_plan_id'] ) );
+            }
+            if ( isset( $_POST['wmp_drip_delay'] ) ) {
+                update_post_meta( $post_id, '_wmp_drip_delay', absint( $_POST['wmp_drip_delay'] ) );
             }
         }
     }

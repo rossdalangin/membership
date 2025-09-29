@@ -78,6 +78,22 @@ class WMP_Shortcodes {
             'wmp_plans'
         );
 
+        $change_subscription_id = isset( $_GET['change_subscription_id'] ) ? absint( $_GET['change_subscription_id'] ) : 0;
+        $current_subscription = null;
+        $current_plan_price = null;
+        $current_plan_id = null;
+
+        if ( $change_subscription_id && is_user_logged_in() ) {
+            $current_subscription = $this->subscriptions_handler->get_subscription( $change_subscription_id );
+            // Ensure the user owns this subscription
+            if ( $current_subscription && $current_subscription->user_id == get_current_user_id() ) {
+                $current_plan_id = $current_subscription->plan_id;
+                $current_plan_price = get_post_meta( $current_plan_id, '_wmp_price', true );
+            } else {
+                $change_subscription_id = 0; // Invalid subscription, reset.
+            }
+        }
+
         $args = array(
             'post_type'      => 'wmp_membership_plan',
             'posts_per_page' => -1,
@@ -93,14 +109,27 @@ class WMP_Shortcodes {
             $output .= '<div class="wmp-plans-grid">';
             while ( $plans->have_posts() ) {
                 $plans->the_post();
-                $price = get_post_meta( get_the_ID(), '_wmp_price', true );
-                $checkout_url = add_query_arg( 'plan_id', get_the_ID(), $atts['checkout_page_url'] );
+                $plan_id = get_the_ID();
+
+                // Skip the current plan if the user is changing their subscription
+                if ( $change_subscription_id && $plan_id == $current_plan_id ) {
+                    continue;
+                }
+
+                $price = get_post_meta( $plan_id, '_wmp_price', true );
+                $button_text = __( 'Sign Up', 'wordpress-membership-pro' );
+                $checkout_url = add_query_arg( 'plan_id', $plan_id, $atts['checkout_page_url'] );
+
+                if ( $change_subscription_id ) {
+                    $button_text = ( (float) $price > (float) $current_plan_price ) ? __( 'Upgrade', 'wordpress-membership-pro' ) : __( 'Downgrade', 'wordpress-membership-pro' );
+                    $checkout_url = add_query_arg( 'change_subscription_id', $change_subscription_id, $checkout_url );
+                }
 
                 $output .= '<div class="wmp-plan">';
                 $output .= '<h2>' . get_the_title() . '</h2>';
                 $output .= '<div class="wmp-plan-description">' . get_the_content() . '</div>';
                 $output .= '<div class="wmp-plan-price">$' . esc_html( $price ) . '</div>';
-                $output .= '<a href="' . esc_url( $checkout_url ) . '" class="wmp-button">' . __( 'Sign Up', 'wordpress-membership-pro' ) . '</a>';
+                $output .= '<a href="' . esc_url( $checkout_url ) . '" class="wmp-button">' . $button_text . '</a>';
                 $output .= '</div>';
             }
             $output .= '</div>';
@@ -126,11 +155,11 @@ class WMP_Shortcodes {
             return __( 'You must be logged in to purchase a plan. Please login or register.', 'wordpress-membership-pro' );
         }
 
-        if ( ! isset( $_GET['plan_id'] ) ) {
+        if ( ! isset( $_REQUEST['plan_id'] ) ) { // Use $_REQUEST to catch both GET and POST
             return __( 'No plan selected. Please go back and choose a plan.', 'wordpress-membership-pro' );
         }
 
-        $plan_id = absint( $_GET['plan_id'] );
+        $plan_id = absint( $_REQUEST['plan_id'] );
         $plan = get_post( $plan_id );
 
         if ( ! $plan || 'wmp_membership_plan' !== $plan->post_type ) {
@@ -140,10 +169,34 @@ class WMP_Shortcodes {
         $price = get_post_meta( $plan_id, '_wmp_price', true );
         $gateways = $this->gateways_manager->get_gateways();
 
+        $coupon_message = '';
+        $applied_coupon_code = '';
+        $display_price = $price;
+
         $output = '<div class="wmp-checkout-form">';
         $output .= '<h3>' . sprintf( __( 'Confirm Your Purchase: %s', 'wordpress-membership-pro' ), esc_html( $plan->post_title ) ) . '</h3>';
-        $output .= '<p><strong>' . __( 'Price:', 'wordpress-membership-pro' ) . '</strong> $' . esc_html( $price ) . '</p>';
 
+        // Price display area
+        $output .= '<div id="wmp-price-display">';
+        $output .= '<p class="wmp-price-original"><strong>' . __( 'Price:', 'wordpress-membership-pro' ) . '</strong> <span class="wmp-price-amount">$' . esc_html( $price ) . '</span></p>';
+        $output .= '<p class="wmp-price-discounted" style="display:none;"><strong>' . __( 'Discounted Price:', 'wordpress-membership-pro' ) . '</strong> <span class="wmp-price-amount"></span></p>';
+        $output .= '</div>';
+
+
+        // Coupon Form
+        $output .= '<div class="wmp-coupon-area">';
+        $output .= '<div id="wmp-coupon-message"></div>';
+        $output .= '<form id="wmp-apply-coupon">';
+        $output .= ' <label for="wmp_coupon_code">' . __('Have a coupon?', 'wordpress-membership-pro') . '</label><br/>';
+        $output .= ' <input type="text" name="wmp_coupon_code" id="wmp_coupon_code" />';
+        $output .= ' <button type="submit" id="wmp-apply-coupon-btn">' . __( 'Apply Coupon', 'wordpress-membership-pro' ) . '</button>';
+        $coupon_nonce = wp_nonce_field( 'wmp_apply_coupon_nonce', 'wmp_apply_coupon_nonce', true, false );
+        $output .= $coupon_nonce;
+        $output .= '</form>';
+        $output .= '</div><hr/>';
+
+
+        // Main Checkout Form
         $output .= '<form id="wmp-checkout" action="" method="post">';
 
         if ( ! empty( $gateways ) ) {
@@ -151,15 +204,30 @@ class WMP_Shortcodes {
             $output .= '<ul class="wmp-payment-gateways">';
             foreach ( $gateways as $gateway ) {
                 $output .= '<li>';
-                $output .= '<input type="radio" name="wmp_payment_gateway" id="wmp_gateway_' . esc_attr( $gateway->id ) . '" value="' . esc_attr( $gateway->id ) . '" checked="checked"/>';
+                $output .= '<input type="radio" name="wmp_payment_gateway" id="wmp_gateway_' . esc_attr( $gateway->id ) . '" value="' . esc_attr( $gateway->id ) . '"' . checked( $gateway->id, 'stripe', false ) . ' class="wmp-gateway-radio" data-gateway-id="' . esc_attr( $gateway->id ) . '"/>';
                 $output .= '<label for="wmp_gateway_' . esc_attr( $gateway->id ) . '">' . esc_html( $gateway->title ) . '</label>';
+
+                if ( method_exists( $gateway, 'get_payment_form_fields' ) ) {
+                    $output .= '<div class="wmp-gateway-fields" id="wmp-gateway-fields-' . esc_attr( $gateway->id ) . '" style="display:none;">';
+                    $output .= $gateway->get_payment_form_fields();
+                    $output .= '</div>';
+                }
+
                 $output .= '</li>';
             }
             $output .= '</ul>';
         }
 
         $output .= '<input type="hidden" name="wmp_plan_id" value="' . esc_attr( $plan_id ) . '" />';
-        $output .= wp_nonce_field( 'wmp_checkout_nonce', '_wpnonce', true, false );
+        $output .= '<input type="hidden" name="wmp_applied_coupon" id="wmp_applied_coupon" value="" />';
+
+        // Pass the subscription ID if this is a change request
+        if ( isset( $_REQUEST['change_subscription_id'] ) ) {
+            $output .= '<input type="hidden" name="change_subscription_id" value="' . absint( $_REQUEST['change_subscription_id'] ) . '" />';
+        }
+
+        $checkout_nonce = wp_nonce_field( 'wmp_checkout_nonce', '_wpnonce', true, false );
+        $output .= $checkout_nonce;
         $output .= '<input type="hidden" name="wmp_action" value="process_checkout" />';
         $output .= '<input type="submit" value="' . __( 'Confirm Purchase', 'wordpress-membership-pro' ) . '" />';
         $output .= '</form>';
@@ -167,6 +235,25 @@ class WMP_Shortcodes {
 
         return $output;
     }
+
+    /**
+     * Retrieves a coupon post by its code (title).
+     *
+     * @since 1.0.1
+     * @access private
+     * @param string $code The coupon code.
+     * @return WP_Post|false The coupon post object or false if not found.
+     */
+
+    /**
+     * Calculates the discounted price.
+     *
+     * @since 1.0.1
+     * @access private
+     * @param float $original_price The original price.
+     * @param WP_Post $coupon The coupon post object.
+     * @return float The discounted price.
+     */
 
     /**
      * Renders the [wmp_account] shortcode.
@@ -187,8 +274,24 @@ class WMP_Shortcodes {
 
         $output = '<div class="wmp-account-dashboard">';
 
-        if ( isset( $_GET['wmp_message'] ) && 'purchase_success' === $_GET['wmp_message'] ) {
-            $output .= '<div class="wmp-message success"><p>' . __( 'Thank you for your purchase! Your new plan is now active.', 'wordpress-membership-pro' ) . '</p></div>';
+        if ( isset( $_GET['wmp_message'] ) ) {
+            $message = '';
+            $message_type = 'success';
+            switch ( $_GET['wmp_message'] ) {
+                case 'purchase_success':
+                    $message = __( 'Thank you for your purchase! Your new plan is now active.', 'wordpress-membership-pro' );
+                    break;
+                case 'plan_changed_success':
+                    $message = __( 'Your plan has been changed successfully.', 'wordpress-membership-pro' );
+                    break;
+                case 'plan_changed_pending':
+                    $message = __( 'Your plan change request has been received and is pending confirmation.', 'wordpress-membership-pro' );
+                    $message_type = 'notice';
+                    break;
+            }
+            if ( ! empty( $message ) ) {
+                $output .= '<div class="wmp-message ' . esc_attr( $message_type ) . '"><p>' . $message . '</p></div>';
+            }
         }
 
         $output .= '<h2>' . __( 'My Account', 'wordpress-membership-pro' ) . '</h2>';
@@ -202,12 +305,14 @@ class WMP_Shortcodes {
             $output .= '<th>' . __( 'Plan', 'wordpress-membership-pro' ) . '</th>';
             $output .= '<th>' . __( 'Status', 'wordpress-membership-pro' ) . '</th>';
             $output .= '<th>' . __( 'Start Date', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '<th>' . __( 'Actions', 'wordpress-membership-pro' ) . '</th>';
             $output .= '</tr></thead>';
             $output .= '<tbody>';
 
             foreach ( $subscriptions as $subscription ) {
                 $plan_name = get_the_title( $subscription->plan_id );
                 $status_text = esc_html( ucfirst( $subscription->status ) );
+                $actions = '';
 
                 // Check for and display trial information
                 if ( 'active' === $subscription->status && ! empty( $subscription->trial_end ) && strtotime( $subscription->trial_end ) > time() ) {
@@ -215,10 +320,17 @@ class WMP_Shortcodes {
                     $status_text = sprintf( __( 'On Trial (ends %s)', 'wordpress-membership-pro' ), $trial_end_date );
                 }
 
+                if ( 'active' === $subscription->status ) {
+                    // Assuming the plans page is at '/plans/'
+                    $change_plan_url = add_query_arg( 'change_subscription_id', $subscription->id, home_url( '/plans' ) );
+                    $actions .= '<a href="' . esc_url( $change_plan_url ) . '" class="wmp-button">' . __( 'Change Plan', 'wordpress-membership-pro' ) . '</a>';
+                }
+
                 $output .= '<tr>';
                 $output .= '<td>' . esc_html( $plan_name ) . '</td>';
                 $output .= '<td>' . $status_text . '</td>';
                 $output .= '<td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $subscription->start_date ) ) ) . '</td>';
+                $output .= '<td>' . $actions . '</td>';
                 $output .= '</tr>';
             }
 
@@ -229,7 +341,41 @@ class WMP_Shortcodes {
         }
 
         $output .= '<h3>' . __( 'Billing History', 'wordpress-membership-pro' ) . '</h3>';
-        $output .= '<p>' . __( 'Your billing history will appear here.', 'wordpress-membership-pro' ) . '</p>';
+
+        global $wpdb;
+        $transactions_table = $wpdb->prefix . 'wmp_transactions';
+        $transactions = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$transactions_table} WHERE user_id = %d ORDER BY created_at DESC", $current_user->ID ) );
+
+        if ( ! empty( $transactions ) ) {
+            $output .= '<table class="wmp-billing-history-table">';
+            $output .= '<thead><tr>';
+            $output .= '<th>' . __( 'Date', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '<th>' . __( 'Amount', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '<th>' . __( 'Status', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '<th>' . __( 'Actions', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '</tr></thead>';
+            $output .= '<tbody>';
+
+            foreach ( $transactions as $transaction ) {
+                $download_invoice_url = add_query_arg( array(
+                    'wmp_action' => 'download_invoice',
+                    'transaction_id' => $transaction->id,
+                    '_wpnonce' => wp_create_nonce( 'wmp_download_invoice_nonce' )
+                ), home_url() );
+
+                $output .= '<tr>';
+                $output .= '<td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $transaction->created_at ) ) ) . '</td>';
+                $output .= '<td>$' . esc_html( $transaction->amount ) . '</td>';
+                $output .= '<td>' . esc_html( ucfirst( $transaction->status ) ) . '</td>';
+                $output .= '<td><a href="' . esc_url( $download_invoice_url ) . '">' . __( 'Download Invoice', 'wordpress-membership-pro' ) . '</a></td>';
+                $output .= '</tr>';
+            }
+
+            $output .= '</tbody>';
+            $output .= '</table>';
+        } else {
+            $output .= '<p>' . __( 'You have no transactions.', 'wordpress-membership-pro' ) . '</p>';
+        }
 
         $output .= '</div>';
 
@@ -353,13 +499,42 @@ class WMP_Shortcodes {
         $output .= '<p>' . __( 'Share this link to earn commissions on new memberships:', 'wordpress-membership-pro' ) . '</p>';
         $output .= '<input type="text" value="' . esc_url( $referral_url ) . '" readonly="readonly" style="width: 100%;" />';
 
-        // Placeholders for future stats implementation
+        // --- Performance Stats ---
+        $referrals_handler = new WMP_Referrals();
+        $conversions = $referrals_handler->get_referral_count( $affiliate->id );
+        $total_earnings = $this->affiliates_handler->get_affiliate_earnings( $affiliate->id );
+
         $output .= '<h3>' . __( 'Your Performance', 'wordpress-membership-pro' ) . '</h3>';
         $output .= '<ul>';
-        $output .= '<li><strong>' . __( 'Referral Visits:', 'wordpress-membership-pro' ) . '</strong> 0</li>';
-        $output .= '<li><strong>' . __( 'Successful Conversions:', 'wordpress-membership-pro' ) . '</strong> 0</li>';
-        $output .= '<li><strong>' . __( 'Total Earnings:', 'wordpress-membership-pro' ) . '</strong> $0.00</li>';
+        $output .= '<li><strong>' . __( 'Referral Visits:', 'wordpress-membership-pro' ) . '</strong> ' . __( 'N/A', 'wordpress-membership-pro' ) . '</li>'; // Placeholder for now
+        $output .= '<li><strong>' . __( 'Successful Conversions:', 'wordpress-membership-pro' ) . '</strong> ' . absint( $conversions ) . '</li>';
+        $output .= '<li><strong>' . __( 'Total Earnings:', 'wordpress-membership-pro' ) . '</strong> $' . esc_html( number_format( $total_earnings, 2 ) ) . '</li>';
         $output .= '</ul>';
+
+        // --- Recent Referrals ---
+        $output .= '<h3>' . __( 'Recent Referrals', 'wordpress-membership-pro' ) . '</h3>';
+        $referrals = $referrals_handler->get_affiliate_referrals( $affiliate->id );
+
+        if ( ! empty( $referrals ) ) {
+            $output .= '<table class="wmp-referrals-table">';
+            $output .= '<thead><tr>';
+            $output .= '<th>' . __( 'Date', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '<th>' . __( 'Status', 'wordpress-membership-pro' ) . '</th>';
+            $output .= '</tr></thead>';
+            $output .= '<tbody>';
+
+            foreach ( $referrals as $referral ) {
+                $output .= '<tr>';
+                $output .= '<td>' . esc_html( date_i18n( get_option( 'date_format' ), strtotime( $referral->created_at ) ) ) . '</td>';
+                $output .= '<td>' . esc_html( ucfirst( $referral->status ) ) . '</td>';
+                $output .= '</tr>';
+            }
+
+            $output .= '</tbody>';
+            $output .= '</table>';
+        } else {
+            $output .= '<p>' . __( 'You have no successful referrals yet.', 'wordpress-membership-pro' ) . '</p>';
+        }
 
         $output .= '</div>';
 
