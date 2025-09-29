@@ -493,6 +493,11 @@ class WMP_Shortcodes {
         $referral_url = add_query_arg( 'ref', $affiliate->id, home_url( '/' ) );
 
         $output = '<div class="wmp-affiliate-dashboard">';
+
+        if ( isset( $_GET['wmp_message'] ) && 'payout_requested' === $_GET['wmp_message'] ) {
+            $output .= '<div class="wmp-message success"><p>' . __( 'Your payout request has been received and will be processed shortly.', 'wordpress-membership-pro' ) . '</p></div>';
+        }
+
         $output .= '<h2>' . __( 'Affiliate Dashboard', 'wordpress-membership-pro' ) . '</h2>';
 
         $output .= '<h3>' . __( 'Your Referral Link', 'wordpress-membership-pro' ) . '</h3>';
@@ -505,11 +510,28 @@ class WMP_Shortcodes {
         $total_earnings = $this->affiliates_handler->get_affiliate_earnings( $affiliate->id );
 
         $output .= '<h3>' . __( 'Your Performance', 'wordpress-membership-pro' ) . '</h3>';
+        $unpaid_earnings = $this->affiliates_handler->get_unpaid_earnings( $affiliate->id );
+
         $output .= '<ul>';
         $output .= '<li><strong>' . __( 'Referral Visits:', 'wordpress-membership-pro' ) . '</strong> ' . __( 'N/A', 'wordpress-membership-pro' ) . '</li>'; // Placeholder for now
         $output .= '<li><strong>' . __( 'Successful Conversions:', 'wordpress-membership-pro' ) . '</strong> ' . absint( $conversions ) . '</li>';
         $output .= '<li><strong>' . __( 'Total Earnings:', 'wordpress-membership-pro' ) . '</strong> $' . esc_html( number_format( $total_earnings, 2 ) ) . '</li>';
+        $output .= '<li><strong>' . __( 'Unpaid Earnings:', 'wordpress-membership-pro' ) . '</strong> $' . esc_html( number_format( $unpaid_earnings, 2 ) ) . '</li>';
         $output .= '</ul>';
+
+        // --- Payout Request ---
+        $minimum_payout = 100; // In a real plugin, this would be a setting.
+        if ( $unpaid_earnings >= $minimum_payout ) {
+            $output .= '<h3>' . __( 'Request Payout', 'wordpress-membership-pro' ) . '</h3>';
+            $output .= '<form id="wmp-request-payout" action="" method="post">';
+            $output .= '<p>' . __( 'You have reached the minimum payout amount. You can request a payout of your unpaid earnings.', 'wordpress-membership-pro' ) . '</p>';
+            $output .= '<input type="hidden" name="wmp_action" value="request_payout" />';
+            $output .= '<input type="hidden" name="affiliate_id" value="' . esc_attr( $affiliate->id ) . '" />';
+            $output .= '<input type="hidden" name="amount" value="' . esc_attr( $unpaid_earnings ) . '" />';
+            $output .= wp_nonce_field( 'wmp_request_payout_nonce', '_wpnonce', true, false );
+            $output .= '<input type="submit" value="' . __( 'Request Payout', 'wordpress-membership-pro' ) . '" />';
+            $output .= '</form>';
+        }
 
         // --- Recent Referrals ---
         $output .= '<h3>' . __( 'Recent Referrals', 'wordpress-membership-pro' ) . '</h3>';
@@ -539,5 +561,103 @@ class WMP_Shortcodes {
         $output .= '</div>';
 
         return $output;
+    }
+
+    /**
+     * Renders the [wmp_oto] shortcode.
+     *
+     * Displays a one-time offer page.
+     *
+     * @since    1.0.3
+     * @param    array     $atts    Shortcode attributes.
+     * @return   string    The shortcode output.
+     */
+    public function render_oto_shortcode( $atts ) {
+        if ( ! isset( $_GET['plan_id'] ) || ! isset( $_GET['subscription_id'] ) ) {
+            return __( 'Invalid offer.', 'wordpress-membership-pro' );
+        }
+
+        $plan_id = absint( $_GET['plan_id'] );
+        $subscription_id = absint( $_GET['subscription_id'] );
+        $plan = get_post( $plan_id );
+
+        if ( ! $plan || 'wmp_membership_plan' !== $plan->post_type ) {
+            return __( 'Invalid offer.', 'wordpress-membership-pro' );
+        }
+
+        $price = get_post_meta( $plan_id, '_wmp_price', true );
+        $accept_url = add_query_arg( array(
+            'plan_id' => $plan_id,
+        ), home_url( '/checkout' ) );
+
+        // --- Decline URL Logic ---
+        $downsell_query = new WP_Query( array(
+            'post_type'  => 'wmp_membership_plan',
+            'meta_key'   => '_wmp_oto_downsell_for',
+            'meta_value' => get_post_meta( $plan_id, '_wmp_oto_upsell_for', true ), // Find downsell for the original plan
+            'posts_per_page' => 1,
+        ) );
+
+        if ( $downsell_query->have_posts() ) {
+            $downsell_plan = $downsell_query->posts[0];
+            $decline_url = add_query_arg( array(
+                'wmp_action' => 'oto_downsell',
+                'plan_id' => $downsell_plan->ID,
+                'subscription_id' => $subscription_id,
+            ), home_url( '/one-time-offer' ) );
+        } else {
+            $decline_url = add_query_arg( 'wmp_message', 'purchase_success', home_url( '/thank-you' ) );
+        }
+
+        $output = '<div class="wmp-oto-page">';
+        $output .= '<h2>' . __( 'Wait! Here Is a Special One-Time Offer', 'wordpress-membership-pro' ) . '</h2>';
+        $output .= '<h3>' . esc_html( $plan->post_title ) . '</h3>';
+        $output .= '<div>' . apply_filters( 'the_content', $plan->post_content ) . '</div>';
+        $output .= '<div class="wmp-oto-price">$' . esc_html( $price ) . '</div>';
+        $output .= '<div class="wmp-oto-actions">';
+        $output .= '<a href="' . esc_url( $accept_url ) . '" class="wmp-button wmp-oto-accept">' . __( 'Yes, Add This To My Order!', 'wordpress-membership-pro' ) . '</a>';
+        $output .= '<a href="' . esc_url( $decline_url ) . '" class="wmp-oto-decline">' . __( 'No, Thank You', 'wordpress-membership-pro' ) . '</a>';
+        $output .= '</div>';
+        $output .= '</div>';
+
+        return $output;
+    }
+
+    /**
+     * Renders the [wmp_download] shortcode.
+     *
+     * Displays a secure download link for a file.
+     *
+     * @since    1.0.4
+     * @param    array     $atts    Shortcode attributes.
+     * @return   string    The shortcode output.
+     */
+    public function render_download_shortcode( $atts ) {
+        $atts = shortcode_atts(
+            array(
+                'id' => 0,
+                'text' => __( 'Download Now', 'wordpress-membership-pro' ),
+            ),
+            $atts,
+            'wmp_download'
+        );
+
+        $file_id = absint( $atts['id'] );
+        if ( ! $file_id ) {
+            return '';
+        }
+
+        $file = get_post( $file_id );
+        if ( ! $file || 'wmp_secure_file' !== $file->post_type ) {
+            return '';
+        }
+
+        $download_url = add_query_arg( array(
+            'wmp_action' => 'download_secure_file',
+            'file_id' => $file_id,
+            '_wpnonce' => wp_create_nonce( 'wmp_download_secure_file_nonce' ),
+        ), home_url() );
+
+        return '<a href="' . esc_url( $download_url ) . '" class="wmp-download-link">' . esc_html( $atts['text'] ) . '</a>';
     }
 }

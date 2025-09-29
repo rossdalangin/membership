@@ -128,11 +128,16 @@ class WMP_Gateway_Stripe {
             }
         }
 
-        // --- IMPORTANT ---
-        // This is a placeholder for a real Stripe integration. In a production environment,
-        // you would use the official Stripe PHP library to create a charge or subscription.
+        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
+        // The following code simulates a Stripe payment but does NOT process a real transaction.
+        // For a production environment, you must have the Stripe PHP SDK installed and replace
+        // this simulation logic with a proper API call to \Stripe\Charge::create() or a similar method.
+        // An admin notice will appear if the Stripe SDK is not detected.
         //
-        // Example:
+        // Example of a real implementation:
+        // if ( ! class_exists( '\Stripe\Stripe' ) ) {
+        //     wp_die( 'Stripe PHP library not found.' );
+        // }
         // try {
         //     \Stripe\Stripe::setApiKey( $this->secret_key );
         //     $charge = \Stripe\Charge::create([
@@ -147,7 +152,7 @@ class WMP_Gateway_Stripe {
         // } catch ( \Exception $e ) {
         //     wp_die( 'An unexpected error occurred. Please try again.' );
         // }
-        // --- End of Placeholder ---
+        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
 
         // Simulate a successful charge for demonstration purposes.
         $charge_id = 'sim_ch_' . uniqid();
@@ -192,6 +197,23 @@ class WMP_Gateway_Stripe {
         // Increment coupon usage if one was applied (only for new subscriptions for now)
         if ( $coupon && ! $change_subscription_id ) {
             WMP_Coupons::increment_usage_count( $coupon->ID );
+        }
+
+        // Check for an upsell offer
+        $upsell_query = new WP_Query( array(
+            'post_type'  => 'wmp_membership_plan',
+            'meta_key'   => '_wmp_oto_upsell_for',
+            'meta_value' => $plan_id,
+            'posts_per_page' => 1,
+        ) );
+
+        if ( $upsell_query->have_posts() ) {
+            $upsell_plan = $upsell_query->posts[0];
+            $redirect_url = add_query_arg( array(
+                'wmp_action' => 'oto_upsell',
+                'plan_id' => $upsell_plan->ID,
+                'subscription_id' => $subscription_id,
+            ), home_url( '/one-time-offer' ) );
         }
 
         wp_redirect( $redirect_url );

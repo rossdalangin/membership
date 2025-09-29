@@ -64,4 +64,31 @@ class WMP_Transactions {
 
         return $transaction_id;
     }
+
+    /**
+     * Refund a transaction.
+     *
+     * @since 1.0.3
+     * @param int $transaction_id The ID of the transaction to refund.
+     * @return bool True on success, false on failure.
+     */
+    public function refund_transaction( $transaction_id ) {
+        global $wpdb;
+
+        $result = $wpdb->update(
+            $this->table_name,
+            array( 'status' => 'refunded' ),
+            array( 'id' => $transaction_id ),
+            array( '%s' ),
+            array( '%d' )
+        );
+
+        if ( ! $result ) {
+            return false;
+        }
+
+        do_action( 'wmp_transaction_refunded', $transaction_id );
+
+        return true;
+    }
 }

@@ -138,4 +138,39 @@ class WMP_Affiliates {
 
         return (float) $total_earnings;
     }
+
+    /**
+     * Calculate the unpaid earnings for an affiliate.
+     *
+     * @since 1.0.4
+     * @param int $affiliate_id The ID of the affiliate.
+     * @return float The total unpaid earnings.
+     */
+    public function get_unpaid_earnings( $affiliate_id ) {
+        global $wpdb;
+        $total_unpaid = 0.00;
+
+        $affiliate = $this->get_affiliate( $affiliate_id );
+        if ( ! $affiliate ) {
+            return $total_unpaid;
+        }
+
+        $referrals_handler = new WMP_Referrals();
+        $referrals = $referrals_handler->get_affiliate_referrals( $affiliate_id );
+
+        if ( ! empty( $referrals ) ) {
+            $transactions_table = $wpdb->prefix . 'wmp_transactions';
+            foreach ( $referrals as $referral ) {
+                if ( ! empty( $referral->transaction_id ) && 'unpaid' === $referral->status ) {
+                    $transaction = $wpdb->get_row( $wpdb->prepare( "SELECT amount, status FROM {$transactions_table} WHERE id = %d", $referral->transaction_id ) );
+                    if ( $transaction && 'completed' === $transaction->status ) {
+                        $commission = (float) $transaction->amount * ( (float) $affiliate->commission_rate / 100 );
+                        $total_unpaid += $commission;
+                    }
+                }
+            }
+        }
+
+        return (float) $total_unpaid;
+    }
 }
