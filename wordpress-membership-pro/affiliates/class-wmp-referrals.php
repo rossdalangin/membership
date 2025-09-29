@@ -83,4 +83,28 @@ class WMP_Referrals {
 
         return $result !== false;
     }
+
+    /**
+     * Get all referrals for a given affiliate.
+     *
+     * @since 1.0.2
+     * @param int $affiliate_id The ID of the affiliate.
+     * @return array|null
+     */
+    public function get_affiliate_referrals( $affiliate_id ) {
+        global $wpdb;
+        return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$this->table_name} WHERE affiliate_id = %d AND transaction_id IS NOT NULL", $affiliate_id ) );
+    }
+
+    /**
+     * Get the total number of successful referrals for an affiliate.
+     *
+     * @since 1.0.2
+     * @param int $affiliate_id The ID of the affiliate.
+     * @return int
+     */
+    public function get_referral_count( $affiliate_id ) {
+        global $wpdb;
+        return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(id) FROM {$this->table_name} WHERE affiliate_id = %d AND transaction_id IS NOT NULL", $affiliate_id ) );
+    }
 }

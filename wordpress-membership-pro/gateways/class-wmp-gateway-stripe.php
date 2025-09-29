@@ -74,13 +74,24 @@ class WMP_Gateway_Stripe {
     protected $subscriptions_handler;
 
     /**
+     * The transaction handler instance.
+     *
+     * @since    1.0.2
+     * @access   protected
+     * @var      WMP_Transactions    $transactions_handler    Handles transaction logic.
+     */
+    protected $transactions_handler;
+
+    /**
      * Initialize the class and set its properties.
      *
      * @since 1.0.1
      * @param WMP_Subscriptions $subscriptions_handler The subscription handler instance.
+     * @param WMP_Transactions  $transactions_handler  The transaction handler instance.
      */
-    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
+    public function __construct( WMP_Subscriptions $subscriptions_handler, WMP_Transactions $transactions_handler ) {
         $this->subscriptions_handler = $subscriptions_handler;
+        $this->transactions_handler = $transactions_handler;
 
         $options = get_option( 'wmp_settings' );
         $this->publishable_key = isset( $options['stripe_publishable_key'] ) ? $options['stripe_publishable_key'] : '';
@@ -140,25 +151,49 @@ class WMP_Gateway_Stripe {
 
         // Simulate a successful charge for demonstration purposes.
         $charge_id = 'sim_ch_' . uniqid();
+        $change_subscription_id = isset( $data['change_subscription_id'] ) ? absint( $data['change_subscription_id'] ) : 0;
+        $subscription_id = null;
 
-        $subscription_data = array(
-            'user_id'                 => $user_id,
-            'plan_id'                 => $plan_id,
-            'status'                  => 'active',
-            'start_date'              => current_time( 'mysql' ),
-            'gateway'                 => $this->id,
-            'gateway_subscription_id' => $charge_id,
-        );
+        if ( $change_subscription_id ) {
+            // This is a plan change.
+            // --- Proration Placeholder ---
+            // In a real implementation, you would calculate the proration cost here
+            // and charge the user accordingly before changing the plan.
+            // ---
+            $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id, [ 'gateway_subscription_id' => $charge_id ] );
+            $subscription_id = $change_subscription_id;
+            $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_success', home_url( '/account' ) );
+        } else {
+            // This is a new subscription.
+            $subscription_data = array(
+                'user_id'                 => $user_id,
+                'plan_id'                 => $plan_id,
+                'status'                  => 'active',
+                'start_date'              => current_time( 'mysql' ),
+                'gateway'                 => $this->id,
+                'gateway_subscription_id' => $charge_id,
+            );
+            $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
+            $redirect_url = add_query_arg( 'wmp_message', 'purchase_success', home_url( '/thank-you' ) );
+        }
 
-        $this->subscriptions_handler->create_subscription( $subscription_data );
+        // Log the transaction
+        if ( $subscription_id ) {
+            $this->transactions_handler->create_transaction( array(
+                'subscription_id' => $subscription_id,
+                'user_id'         => $user_id,
+                'amount'          => $final_price,
+                'gateway'         => $this->id,
+                'transaction_id'  => $charge_id,
+                'status'          => 'completed',
+            ) );
+        }
 
-        // Increment coupon usage if one was applied
-        if ( $coupon ) {
+        // Increment coupon usage if one was applied (only for new subscriptions for now)
+        if ( $coupon && ! $change_subscription_id ) {
             WMP_Coupons::increment_usage_count( $coupon->ID );
         }
 
-        // Redirect to a success page.
-        $redirect_url = add_query_arg( 'wmp_message', 'purchase_success', home_url( '/thank-you' ) );
         wp_redirect( $redirect_url );
         exit;
     }
