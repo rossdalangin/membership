@@ -97,4 +97,69 @@ class WMP_Reports {
         fclose( $output );
         exit;
     }
+
+    /**
+     * Calculate the Churn Rate for the last 30 days.
+     *
+     * @since 1.0.6
+     * @return float The churn rate percentage.
+     */
+    public function get_churn_rate() {
+        global $wpdb;
+        $subscriptions_table = $wpdb->prefix . 'wmp_subscriptions';
+
+        $start_date = date( 'Y-m-d H:i:s', strtotime( '-30 days' ) );
+
+        // Customers at the start of the period
+        $initial_customers = $wpdb->get_var(
+            $wpdb->prepare( "SELECT COUNT(DISTINCT user_id) FROM {$subscriptions_table} WHERE start_date < %s", $start_date )
+        );
+
+        if ( $initial_customers == 0 ) {
+            return 0; // Cannot divide by zero
+        }
+
+        // Customers who churned during the period
+        $churned_customers = $wpdb->get_var(
+            $wpdb->prepare( "SELECT COUNT(DISTINCT user_id) FROM {$subscriptions_table} WHERE status = 'cancelled' AND updated_at >= %s", $start_date )
+        );
+
+        $churn_rate = ( $churned_customers / $initial_customers ) * 100;
+
+        return round( $churn_rate, 2 );
+    }
+
+    /**
+     * Calculate the Customer Lifetime Value (LTV).
+     *
+     * @since 1.0.6
+     * @return float The calculated LTV.
+     */
+    public function get_ltv() {
+        global $wpdb;
+        $transactions_table = $wpdb->prefix . 'wmp_transactions';
+        $subscriptions_table = $wpdb->prefix . 'wmp_subscriptions';
+
+        // 1. Calculate Average Revenue Per Account (ARPA)
+        $total_revenue = $wpdb->get_var( "SELECT SUM(amount) FROM {$transactions_table} WHERE status = 'completed'" );
+        $total_customers = $wpdb->get_var( "SELECT COUNT(DISTINCT user_id) FROM {$subscriptions_table}" );
+
+        if ($total_customers == 0) {
+            return 0;
+        }
+
+        $arpa = $total_revenue / $total_customers;
+
+        // 2. Calculate Customer Lifetime (1 / Churn Rate)
+        $churn_rate = $this->get_churn_rate();
+        if ( $churn_rate == 0 ) {
+            return 0; // Avoid division by zero, indicates no churn or infinite lifetime
+        }
+        $customer_lifetime = 1 / ( $churn_rate / 100 );
+
+        // 3. LTV = ARPA * Customer Lifetime
+        $ltv = $arpa * $customer_lifetime;
+
+        return round( $ltv, 2 );
+    }
 }

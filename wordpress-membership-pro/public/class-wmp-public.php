@@ -149,21 +149,8 @@ class WMP_Public {
             wp_die( 'Invalid file ID.' );
         }
 
-        $restricted_to = get_post_meta( $file_id, '_wmp_restricted_to_plans', true );
-        $has_access = false;
-
-        if ( empty( $restricted_to ) ) {
-            $has_access = true; // No restrictions
-        } else {
-            foreach ( $restricted_to as $plan_id ) {
-                if ( current_user_can( 'access_wmp_content_for_plan_' . $plan_id ) ) {
-                    $has_access = true;
-                    break;
-                }
-            }
-        }
-
-        if ( ! $has_access ) {
+        $access_handler = new WMP_Access_Handler();
+        if ( ! $access_handler->has_access_to_file( get_current_user_id(), $file_id ) ) {
             wp_die( 'You do not have permission to download this file.' );
         }
 
@@ -340,8 +327,10 @@ class WMP_Public {
         if ( isset( $_GET['ref'] ) ) {
             $affiliate_id = absint( $_GET['ref'] );
             if ( $affiliate_id ) {
-                // Set a cookie to track the referral for 30 days.
-                setcookie( 'wmp_ref_id', $affiliate_id, time() + ( 86400 * 30 ), COOKIEPATH, COOKIE_DOMAIN );
+                $options = get_option( 'wmp_settings' );
+                $cookie_expiration = isset( $options['affiliate_cookie_expiration'] ) ? absint( $options['affiliate_cookie_expiration'] ) : 30;
+                // Set a cookie to track the referral.
+                setcookie( 'wmp_ref_id', $affiliate_id, time() + ( 86400 * $cookie_expiration ), COOKIEPATH, COOKIE_DOMAIN );
             }
         }
     }
@@ -372,10 +361,13 @@ class WMP_Public {
             return;
         }
 
+        $options = get_option( 'wmp_settings' );
+        $commission_rate = isset( $options['affiliate_commission_rate'] ) ? floatval( $options['affiliate_commission_rate'] ) : 20.00;
+
         $affiliate_data = array(
             'user_id'         => $user_id,
             'status'          => 'pending',
-            'commission_rate' => 20.00, // Default commission rate, could be a setting
+            'commission_rate' => $commission_rate,
         );
 
         $this->affiliates_handler->create_affiliate( $affiliate_data );

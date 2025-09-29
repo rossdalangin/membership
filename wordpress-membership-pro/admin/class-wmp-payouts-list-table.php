@@ -91,13 +91,42 @@ class WMP_Payouts_List_Table extends WP_List_Table {
      * @param  string $column_name
      * @return mixed
      */
+    public function column_affiliate_id( $item ) {
+        $affiliate_handler = new WMP_Affiliates();
+        $affiliate = $affiliate_handler->get_affiliate( $item['affiliate_id'] );
+        $user = get_user_by( 'id', $affiliate->user_id );
+        $affiliate_name = $user ? $user->display_name : __( 'N/A', 'wordpress-membership-pro' );
+
+        $actions = array();
+        if ( 'pending' === $item['status'] ) {
+            $approve_url = add_query_arg( array(
+                'page'   => 'wmp-payouts',
+                'action' => 'wmp_approve_payout',
+                'payout_id' => $item['id'],
+                '_wpnonce' => wp_create_nonce( 'wmp_approve_payout_nonce' )
+            ), admin_url( 'admin.php' ) );
+            $actions['approve'] = '<a href="' . esc_url( $approve_url ) . '">' . __( 'Approve', 'wordpress-membership-pro' ) . '</a>';
+
+            $reject_url = add_query_arg( array(
+                'page'   => 'wmp-payouts',
+                'action' => 'wmp_reject_payout',
+                'payout_id' => $item['id'],
+                '_wpnonce' => wp_create_nonce( 'wmp_reject_payout_nonce' )
+            ), admin_url( 'admin.php' ) );
+            $actions['reject'] = '<a href="' . esc_url( $reject_url ) . '" style="color:#a00;">' . __( 'Reject', 'wordpress-membership-pro' ) . '</a>';
+        }
+        return sprintf( '%1$s %2$s', $affiliate_name, $this->row_actions( $actions ) );
+    }
+
+    /**
+     * Default column rendering.
+     *
+     * @param  array  $item
+     * @param  string $column_name
+     * @return mixed
+     */
     public function column_default( $item, $column_name ) {
         switch ( $column_name ) {
-            case 'affiliate_id':
-                $affiliate_handler = new WMP_Affiliates();
-                $affiliate = $affiliate_handler->get_affiliate( $item['affiliate_id'] );
-                $user = get_user_by( 'id', $affiliate->user_id );
-                return $user ? $user->display_name : __( 'N/A', 'wordpress-membership-pro' );
             case 'amount':
                 return '$' . number_format_i18n( $item[ $column_name ], 2 );
             case 'created_at':

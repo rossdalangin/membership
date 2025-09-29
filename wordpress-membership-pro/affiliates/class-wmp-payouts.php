@@ -66,4 +66,35 @@ class WMP_Payouts {
 
         return $payout_id;
     }
+
+    /**
+     * Update a payout's status.
+     *
+     * @since   1.0.4
+     * @param   int    $payout_id    The ID of the payout to update.
+     * @param   string $new_status   The new status.
+     * @return  bool                 True on success, false on failure.
+     */
+    public function update_payout_status( $payout_id, $new_status ) {
+        global $wpdb;
+
+        $result = $wpdb->update(
+            $this->table_name,
+            array(
+                'status'     => $new_status,
+                'updated_at' => current_time( 'mysql' ),
+            ),
+            array( 'id' => $payout_id ),
+            array( '%s', '%s' ),
+            array( '%d' )
+        );
+
+        if ( ! $result ) {
+            return false;
+        }
+
+        do_action( 'wmp_payout_status_updated', $payout_id, $new_status );
+
+        return true;
+    }
 }
