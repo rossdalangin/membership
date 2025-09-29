@@ -28,6 +28,7 @@ class WMP_CPTs {
         $this->register_membership_plan_cpt();
         $this->register_payment_cpt();
         $this->register_secure_files_cpt();
+        $this->register_promo_tools_cpt();
         $this->register_plan_category_taxonomy();
     }
 
@@ -180,5 +181,43 @@ class WMP_CPTs {
             'show_in_rest'          => false,
         );
         register_post_type( 'wmp_secure_file', $args );
+    }
+
+    /**
+     * Register the Promo Tools Custom Post Type.
+     *
+     * @since    1.0.6
+     * @access   private
+     */
+    private function register_promo_tools_cpt() {
+        $labels = array(
+            'name'                  => _x( 'Promo Tools', 'Post Type General Name', 'wordpress-membership-pro' ),
+            'singular_name'         => _x( 'Promo Tool', 'Post Type Singular Name', 'wordpress-membership-pro' ),
+            'menu_name'             => __( 'Promo Tools', 'wordpress-membership-pro' ),
+            'all_items'             => __( 'All Promo Tools', 'wordpress-membership-pro' ),
+            'add_new_item'          => __( 'Add New Promo Tool', 'wordpress-membership-pro' ),
+            'add_new'               => __( 'Add New', 'wordpress-membership-pro' ),
+            'new_item'              => __( 'New Promo Tool', 'wordpress-membership-pro' ),
+            'edit_item'             => __( 'Edit Promo Tool', 'wordpress-membership-pro' ),
+            'update_item'           => __( 'Update Promo Tool', 'wordpress-membership-pro' ),
+            'view_item'             => __( 'View Promo Tool', 'wordpress-membership-pro' ),
+            'search_items'          => __( 'Search Promo Tools', 'wordpress-membership-pro' ),
+        );
+        $args = array(
+            'label'                 => __( 'Promo Tool', 'wordpress-membership-pro' ),
+            'description'           => __( 'For managing affiliate promotional materials like banners and swipe copy.', 'wordpress-membership-pro' ),
+            'labels'                => $labels,
+            'supports'              => array( 'title', 'editor', 'thumbnail' ),
+            'hierarchical'          => false,
+            'public'                => false,
+            'show_ui'               => true,
+            'show_in_menu'          => 'wmp-affiliates',
+            'capability_type'       => 'post',
+            'has_archive'           => false,
+            'exclude_from_search'   => true,
+            'publicly_queryable'    => false,
+            'show_in_rest'          => false,
+        );
+        register_post_type( 'wmp_promo_tool', $args );
     }
 }

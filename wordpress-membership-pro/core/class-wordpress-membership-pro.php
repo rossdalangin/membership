@@ -121,6 +121,7 @@ class WordPress_Membership_Pro {
      */
     private function load_dependencies() {
         require_once WMP_PLUGIN_DIR . 'includes/class-wmp-loader.php';
+        require_once WMP_PLUGIN_DIR . 'includes/class-wmp-access-handler.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-cpts.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-admin.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-coupons.php';
@@ -188,17 +189,7 @@ class WordPress_Membership_Pro {
      * @since    1.0.5
      */
     public function register_blocks() {
-        wp_register_script(
-            'wmp-plans-block-editor',
-            WMP_PLUGIN_URL . 'blocks/plans/index.js',
-            array( 'wp-blocks', 'wp-i18n', 'wp-element' ),
-            WMP_VERSION,
-            true
-        );
-
-        register_block_type( WMP_PLUGIN_DIR . 'blocks/plans', array(
-            'editor_script' => 'wmp-plans-block-editor',
-        ) );
+        register_block_type( WMP_PLUGIN_DIR . 'blocks/plans' );
     }
 
     /**
@@ -222,6 +213,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_affiliate_actions' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_transaction_actions' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_export_actions' );
+        $this->loader->add_action( 'admin_init', $plugin_admin, 'process_payout_actions' );
         $this->loader->add_action( 'admin_notices', $plugin_admin, 'check_stripe_library' );
         $this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_admin_scripts' );
     }

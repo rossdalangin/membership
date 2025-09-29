@@ -70,9 +70,13 @@ class WMP_Shortcodes {
      * @return   string    The shortcode output.
      */
     public function render_plans_shortcode( $atts ) {
+        $options = get_option( 'wmp_settings' );
+        $checkout_page_id = isset( $options['checkout_page_id'] ) ? $options['checkout_page_id'] : 0;
+        $checkout_page_url = $checkout_page_id ? get_permalink( $checkout_page_id ) : home_url( '/checkout' );
+
         $atts = shortcode_atts(
             array(
-                'checkout_page_url' => '/checkout', // Default checkout page slug
+                'checkout_page_url' => $checkout_page_url,
             ),
             $atts,
             'wmp_plans'
@@ -321,9 +325,12 @@ class WMP_Shortcodes {
                 }
 
                 if ( 'active' === $subscription->status ) {
-                    // Assuming the plans page is at '/plans/'
-                    $change_plan_url = add_query_arg( 'change_subscription_id', $subscription->id, home_url( '/plans' ) );
-                    $actions .= '<a href="' . esc_url( $change_plan_url ) . '" class="wmp-button">' . __( 'Change Plan', 'wordpress-membership-pro' ) . '</a>';
+                    $options = get_option( 'wmp_settings' );
+                    $plans_page_id = isset( $options['plans_page_id'] ) ? $options['plans_page_id'] : 0;
+                    if ( $plans_page_id ) {
+                        $change_plan_url = add_query_arg( 'change_subscription_id', $subscription->id, get_permalink( $plans_page_id ) );
+                        $actions .= '<a href="' . esc_url( $change_plan_url ) . '" class="wmp-button">' . __( 'Change Plan', 'wordpress-membership-pro' ) . '</a>';
+                    }
                 }
 
                 $output .= '<tr>';
@@ -487,7 +494,15 @@ class WMP_Shortcodes {
         $affiliate = $this->affiliates_handler->get_affiliate_by_user( $user_id );
 
         if ( ! $affiliate || 'active' !== $affiliate->status ) {
-            return __( 'You are not an active affiliate. You can apply to become one here.', 'wordpress-membership-pro' ); // In a real scenario, we would link to the registration page.
+            $options = get_option( 'wmp_settings' );
+            $registration_page_id = isset( $options['affiliate_registration_page_id'] ) ? $options['affiliate_registration_page_id'] : 0;
+            $registration_url = $registration_page_id ? get_permalink( $registration_page_id ) : '#';
+
+            if ( '#' === $registration_url ) {
+                return __( 'You are not an active affiliate.', 'wordpress-membership-pro' );
+            } else {
+                return __( 'You are not an active affiliate. You can apply to become one <a href="'. esc_url( $registration_url ) .'">here</a>.', 'wordpress-membership-pro' );
+            }
         }
 
         $referral_url = add_query_arg( 'ref', $affiliate->id, home_url( '/' ) );
@@ -520,7 +535,8 @@ class WMP_Shortcodes {
         $output .= '</ul>';
 
         // --- Payout Request ---
-        $minimum_payout = 100; // In a real plugin, this would be a setting.
+        $options = get_option( 'wmp_settings' );
+        $minimum_payout = isset( $options['affiliate_minimum_payout'] ) ? floatval( $options['affiliate_minimum_payout'] ) : 100;
         if ( $unpaid_earnings >= $minimum_payout ) {
             $output .= '<h3>' . __( 'Request Payout', 'wordpress-membership-pro' ) . '</h3>';
             $output .= '<form id="wmp-request-payout" action="" method="post">';
@@ -558,6 +574,45 @@ class WMP_Shortcodes {
             $output .= '<p>' . __( 'You have no successful referrals yet.', 'wordpress-membership-pro' ) . '</p>';
         }
 
+        // --- Promo Tools ---
+        $output .= '<h3>' . __( 'Promo Tools', 'wordpress-membership-pro' ) . '</h3>';
+        $promo_tools_query = new WP_Query( array(
+            'post_type'      => 'wmp_promo_tool',
+            'posts_per_page' => -1,
+            'post_status'    => 'publish',
+        ) );
+
+        if ( $promo_tools_query->have_posts() ) {
+            while ( $promo_tools_query->have_posts() ) {
+                $promo_tools_query->the_post();
+                $output .= '<div class="wmp-promo-tool">';
+                $output .= '<h4>' . get_the_title() . '</h4>';
+
+                // Display banner image linked with referral URL
+                if ( has_post_thumbnail() ) {
+                    $output .= '<div class="wmp-promo-banner">';
+                    $output .= '<a href="' . esc_url( $referral_url ) . '" target="_blank">';
+                    $output .= get_the_post_thumbnail( get_the_ID(), 'full' );
+                    $output .= '</a>';
+                    $output .= '</div>';
+                }
+
+                // Display swipe copy
+                $output .= '<div class="wmp-promo-swipe-copy">';
+                $output .= '<strong>' . __( 'Swipe Copy (HTML):', 'wordpress-membership-pro' ) . '</strong>';
+                $output .= '<textarea readonly style="width: 100%; height: 150px;">';
+                $output .= esc_textarea( '<a href="' . esc_url( $referral_url ) . '">' . get_the_content() . '</a>' );
+                $output .= '</textarea>';
+                $output .= '</div>';
+
+                $output .= '</div>';
+            }
+            wp_reset_postdata();
+        } else {
+            $output .= '<p>' . __( 'No promo tools are available at this time.', 'wordpress-membership-pro' ) . '</p>';
+        }
+
+
         $output .= '</div>';
 
         return $output;
@@ -573,11 +628,20 @@ class WMP_Shortcodes {
      * @return   string    The shortcode output.
      */
     public function render_oto_shortcode( $atts ) {
+        $options = get_option( 'wmp_settings' );
+        $checkout_page_id = isset( $options['checkout_page_id'] ) ? $options['checkout_page_id'] : 0;
+        $oto_page_id = isset( $options['oto_page_id'] ) ? $options['oto_page_id'] : 0;
+        $thank_you_page_id = isset( $options['thank_you_page_id'] ) ? $options['thank_you_page_id'] : 0;
+
+        if ( ! $checkout_page_id || ! $oto_page_id || ! $thank_you_page_id ) {
+            return __( 'The site administrator has not configured the required pages for one-time offers.', 'wordpress-membership-pro' );
+        }
+
         if ( ! isset( $_GET['plan_id'] ) || ! isset( $_GET['subscription_id'] ) ) {
             return __( 'Invalid offer.', 'wordpress-membership-pro' );
         }
 
-        $plan_id = absint( $_GET['plan_id'] );
+        $plan_id = absint( $_GET['plan_id'] ); // This is the upsell plan ID
         $subscription_id = absint( $_GET['subscription_id'] );
         $plan = get_post( $plan_id );
 
@@ -588,26 +652,29 @@ class WMP_Shortcodes {
         $price = get_post_meta( $plan_id, '_wmp_price', true );
         $accept_url = add_query_arg( array(
             'plan_id' => $plan_id,
-        ), home_url( '/checkout' ) );
+        ), get_permalink( $checkout_page_id ) );
 
         // --- Decline URL Logic ---
+        // Find a plan that is set as a downsell FOR THIS upsell plan.
         $downsell_query = new WP_Query( array(
             'post_type'  => 'wmp_membership_plan',
             'meta_key'   => '_wmp_oto_downsell_for',
-            'meta_value' => get_post_meta( $plan_id, '_wmp_oto_upsell_for', true ), // Find downsell for the original plan
+            'meta_value' => $plan_id,
             'posts_per_page' => 1,
         ) );
 
         if ( $downsell_query->have_posts() ) {
             $downsell_plan = $downsell_query->posts[0];
+            // Redirect to the same OTO page, but with the downsell plan ID
             $decline_url = add_query_arg( array(
-                'wmp_action' => 'oto_downsell',
                 'plan_id' => $downsell_plan->ID,
                 'subscription_id' => $subscription_id,
-            ), home_url( '/one-time-offer' ) );
+            ), get_permalink( $oto_page_id ) );
         } else {
-            $decline_url = add_query_arg( 'wmp_message', 'purchase_success', home_url( '/thank-you' ) );
+            // No downsell, so redirect to the thank you page
+            $decline_url = add_query_arg( 'wmp_message', 'purchase_success', get_permalink( $thank_you_page_id ) );
         }
+        wp_reset_postdata();
 
         $output = '<div class="wmp-oto-page">';
         $output .= '<h2>' . __( 'Wait! Here Is a Special One-Time Offer', 'wordpress-membership-pro' ) . '</h2>';
@@ -635,8 +702,9 @@ class WMP_Shortcodes {
     public function render_download_shortcode( $atts ) {
         $atts = shortcode_atts(
             array(
-                'id' => 0,
+                'id'   => 0,
                 'text' => __( 'Download Now', 'wordpress-membership-pro' ),
+                'no_access_text' => __( 'You do not have access to this file. Please upgrade your membership.', 'wordpress-membership-pro' ),
             ),
             $atts,
             'wmp_download'
@@ -652,10 +720,21 @@ class WMP_Shortcodes {
             return '';
         }
 
+        // Check if user has access
+        if ( ! is_user_logged_in() ) {
+            return esc_html( $atts['no_access_text'] );
+        }
+
+        $user_id = get_current_user_id();
+        $access_handler = new WMP_Access_Handler();
+        if ( ! $access_handler->has_access_to_file( $user_id, $file_id ) ) {
+            return esc_html( $atts['no_access_text'] );
+        }
+
         $download_url = add_query_arg( array(
             'wmp_action' => 'download_secure_file',
-            'file_id' => $file_id,
-            '_wpnonce' => wp_create_nonce( 'wmp_download_secure_file_nonce' ),
+            'file_id'    => $file_id,
+            '_wpnonce'   => wp_create_nonce( 'wmp_download_secure_file_nonce' ),
         ), home_url() );
 
         return '<a href="' . esc_url( $download_url ) . '" class="wmp-download-link">' . esc_html( $atts['text'] ) . '</a>';
