@@ -126,11 +126,11 @@ class WMP_Shortcodes {
             return __( 'You must be logged in to purchase a plan. Please login or register.', 'wordpress-membership-pro' );
         }
 
-        if ( ! isset( $_GET['plan_id'] ) ) {
+        if ( ! isset( $_REQUEST['plan_id'] ) ) { // Use $_REQUEST to catch both GET and POST
             return __( 'No plan selected. Please go back and choose a plan.', 'wordpress-membership-pro' );
         }
 
-        $plan_id = absint( $_GET['plan_id'] );
+        $plan_id = absint( $_REQUEST['plan_id'] );
         $plan = get_post( $plan_id );
 
         if ( ! $plan || 'wmp_membership_plan' !== $plan->post_type ) {
@@ -140,10 +140,34 @@ class WMP_Shortcodes {
         $price = get_post_meta( $plan_id, '_wmp_price', true );
         $gateways = $this->gateways_manager->get_gateways();
 
+        $coupon_message = '';
+        $applied_coupon_code = '';
+        $display_price = $price;
+
         $output = '<div class="wmp-checkout-form">';
         $output .= '<h3>' . sprintf( __( 'Confirm Your Purchase: %s', 'wordpress-membership-pro' ), esc_html( $plan->post_title ) ) . '</h3>';
-        $output .= '<p><strong>' . __( 'Price:', 'wordpress-membership-pro' ) . '</strong> $' . esc_html( $price ) . '</p>';
 
+        // Price display area
+        $output .= '<div id="wmp-price-display">';
+        $output .= '<p class="wmp-price-original"><strong>' . __( 'Price:', 'wordpress-membership-pro' ) . '</strong> <span class="wmp-price-amount">$' . esc_html( $price ) . '</span></p>';
+        $output .= '<p class="wmp-price-discounted" style="display:none;"><strong>' . __( 'Discounted Price:', 'wordpress-membership-pro' ) . '</strong> <span class="wmp-price-amount"></span></p>';
+        $output .= '</div>';
+
+
+        // Coupon Form
+        $output .= '<div class="wmp-coupon-area">';
+        $output .= '<div id="wmp-coupon-message"></div>';
+        $output .= '<form id="wmp-apply-coupon">';
+        $output .= ' <label for="wmp_coupon_code">' . __('Have a coupon?', 'wordpress-membership-pro') . '</label><br/>';
+        $output .= ' <input type="text" name="wmp_coupon_code" id="wmp_coupon_code" />';
+        $output .= ' <button type="submit" id="wmp-apply-coupon-btn">' . __( 'Apply Coupon', 'wordpress-membership-pro' ) . '</button>';
+        $coupon_nonce = wp_nonce_field( 'wmp_apply_coupon_nonce', 'wmp_apply_coupon_nonce', true, false );
+        $output .= $coupon_nonce;
+        $output .= '</form>';
+        $output .= '</div><hr/>';
+
+
+        // Main Checkout Form
         $output .= '<form id="wmp-checkout" action="" method="post">';
 
         if ( ! empty( $gateways ) ) {
@@ -151,15 +175,24 @@ class WMP_Shortcodes {
             $output .= '<ul class="wmp-payment-gateways">';
             foreach ( $gateways as $gateway ) {
                 $output .= '<li>';
-                $output .= '<input type="radio" name="wmp_payment_gateway" id="wmp_gateway_' . esc_attr( $gateway->id ) . '" value="' . esc_attr( $gateway->id ) . '" checked="checked"/>';
+                $output .= '<input type="radio" name="wmp_payment_gateway" id="wmp_gateway_' . esc_attr( $gateway->id ) . '" value="' . esc_attr( $gateway->id ) . '"' . checked( $gateway->id, 'stripe', false ) . ' class="wmp-gateway-radio" data-gateway-id="' . esc_attr( $gateway->id ) . '"/>';
                 $output .= '<label for="wmp_gateway_' . esc_attr( $gateway->id ) . '">' . esc_html( $gateway->title ) . '</label>';
+
+                if ( method_exists( $gateway, 'get_payment_form_fields' ) ) {
+                    $output .= '<div class="wmp-gateway-fields" id="wmp-gateway-fields-' . esc_attr( $gateway->id ) . '" style="display:none;">';
+                    $output .= $gateway->get_payment_form_fields();
+                    $output .= '</div>';
+                }
+
                 $output .= '</li>';
             }
             $output .= '</ul>';
         }
 
         $output .= '<input type="hidden" name="wmp_plan_id" value="' . esc_attr( $plan_id ) . '" />';
-        $output .= wp_nonce_field( 'wmp_checkout_nonce', '_wpnonce', true, false );
+        $output .= '<input type="hidden" name="wmp_applied_coupon" id="wmp_applied_coupon" value="" />';
+        $checkout_nonce = wp_nonce_field( 'wmp_checkout_nonce', '_wpnonce', true, false );
+        $output .= $checkout_nonce;
         $output .= '<input type="hidden" name="wmp_action" value="process_checkout" />';
         $output .= '<input type="submit" value="' . __( 'Confirm Purchase', 'wordpress-membership-pro' ) . '" />';
         $output .= '</form>';
@@ -167,6 +200,25 @@ class WMP_Shortcodes {
 
         return $output;
     }
+
+    /**
+     * Retrieves a coupon post by its code (title).
+     *
+     * @since 1.0.1
+     * @access private
+     * @param string $code The coupon code.
+     * @return WP_Post|false The coupon post object or false if not found.
+     */
+
+    /**
+     * Calculates the discounted price.
+     *
+     * @since 1.0.1
+     * @access private
+     * @param float $original_price The original price.
+     * @param WP_Post $coupon The coupon post object.
+     * @return float The discounted price.
+     */
 
     /**
      * Renders the [wmp_account] shortcode.

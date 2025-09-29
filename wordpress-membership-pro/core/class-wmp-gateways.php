@@ -61,9 +61,8 @@ class WMP_Gateways {
         foreach ( $gateway_files as $gateway_file ) {
             require_once $gateway_file;
             $class_name = basename( $gateway_file, '.php' );
-            // Convert file name like 'class-wmp-gateway-stripe' to 'WMP_Gateway_Stripe'
             $class_name = str_replace( 'class-wmp-gateway-', '', $class_name );
-            $class_name = 'WMP_Gateway_' . str_replace( '-', '_', ucwords( $class_name, '-' ) );
+            $class_name = 'WMP_Gateway_' . str_replace( ' ', '_', ucwords( str_replace( '-', ' ', $class_name ) ) );
 
             if ( class_exists( $class_name ) ) {
                 $gateway = new $class_name( $this->subscriptions_handler );

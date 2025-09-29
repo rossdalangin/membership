@@ -82,7 +82,7 @@ class WMP_Public {
         $this->referrals_handler = $referrals_handler;
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-content-protection.php';
-        $this->content_protection = new WMP_Content_Protection();
+        $this->content_protection = new WMP_Content_Protection( $this->subscriptions_handler );
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-shortcodes.php';
         $this->shortcodes = new WMP_Shortcodes( $this->subscriptions_handler, $this->gateways_manager, $this->affiliates_handler );
@@ -449,6 +449,56 @@ class WMP_Public {
      * @since    1.0.0
      */
     public function enqueue_scripts() {
-        // wp_enqueue_script( $this->plugin_name, WMP_PLUGIN_URL . 'public/js/wmp-public.js', array( 'jquery' ), $this->version, false );
+        wp_enqueue_script( $this->plugin_name . '-stripe', 'https://js.stripe.com/v3/', array(), null, true );
+        wp_enqueue_script( $this->plugin_name, WMP_PLUGIN_URL . 'public/js/wmp-public.js', array( 'jquery', $this->plugin_name . '-stripe' ), $this->version, true );
+
+        $options = get_option( 'wmp_settings' );
+        $stripe_vars = array(
+            'publishable_key' => isset( $options['stripe_publishable_key'] ) ? $options['stripe_publishable_key'] : ''
+        );
+        wp_localize_script( $this->plugin_name, 'wmp_stripe_vars', $stripe_vars );
+
+        // Localize AJAX URL for the public script
+        wp_localize_script( $this->plugin_name, 'wmp_ajax', array( 'ajax_url' => admin_url( 'admin-ajax.php' ) ) );
+    }
+
+    /**
+     * Handle the AJAX request for applying a coupon.
+     *
+     * @since 1.0.1
+     */
+    public function apply_coupon_ajax_handler() {
+        check_ajax_referer( 'wmp_apply_coupon_nonce', 'nonce' );
+
+        $coupon_code = isset( $_POST['coupon_code'] ) ? sanitize_text_field( $_POST['coupon_code'] ) : '';
+        $plan_id = isset( $_POST['plan_id'] ) ? absint( $_POST['plan_id'] ) : 0;
+
+        if ( empty( $coupon_code ) || empty( $plan_id ) ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wordpress-membership-pro' ) ) );
+        }
+
+        $plan_price = get_post_meta( $plan_id, '_wmp_price', true );
+        $coupon = WMP_Coupons::get_coupon_by_code( $coupon_code );
+
+        if ( ! $coupon ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid coupon code.', 'wordpress-membership-pro' ) ) );
+        }
+
+        $usage_limit = get_post_meta( $coupon->ID, '_wmp_usage_limit', true );
+        $usage_count = get_post_meta( $coupon->ID, '_wmp_usage_count', true );
+
+        if ( ! empty( $usage_limit ) && absint( $usage_count ) >= absint( $usage_limit ) ) {
+            wp_send_json_error( array( 'message' => __( 'This coupon has reached its usage limit.', 'wordpress-membership-pro' ) ) );
+        }
+
+        $new_price = WMP_Coupons::calculate_discounted_price( $plan_price, $coupon );
+
+        wp_send_json_success( array(
+            'message' => __( 'Coupon applied successfully!', 'wordpress-membership-pro' ),
+            'original_price' => (float) $plan_price,
+            'discounted_price' => (float) $new_price,
+            'original_price_formatted' => '$' . number_format( (float)$plan_price, 2 ),
+            'discounted_price_formatted' => '$' . number_format( (float)$new_price, 2 ),
+        ) );
     }
 }

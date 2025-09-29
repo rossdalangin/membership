@@ -113,6 +113,7 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'includes/class-wmp-loader.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-cpts.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-admin.php';
+        require_once WMP_PLUGIN_DIR . 'core/class-wmp-coupons.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-subscriptions-list-table.php';
         require_once WMP_PLUGIN_DIR . 'public/class-wmp-public.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-subscriptions.php';
@@ -172,6 +173,7 @@ class WordPress_Membership_Pro {
         $plugin_cpts = new WMP_CPTs();
         $this->loader->add_action( 'init', $plugin_cpts, 'register' );
 
+
         $plugin_admin = new WMP_Admin( $this->get_plugin_name(), $this->get_version() );
         $this->loader->add_action( 'add_meta_boxes', $plugin_admin, 'add_meta_boxes' );
         $this->loader->add_action( 'save_post', $plugin_admin, 'save_meta_boxes' );
@@ -179,6 +181,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'admin_init', $plugin_admin, 'register_settings' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_subscription_actions' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_affiliate_actions' );
+        $this->loader->add_action( 'admin_notices', $plugin_admin, 'check_stripe_library' );
     }
 
     /**
@@ -194,9 +197,16 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );
 
+        $plugin_coupons = new WMP_Coupons();
+        $this->loader->add_action( 'init', $plugin_coupons, 'register_cpt' );
+        $this->loader->add_action( 'add_meta_boxes', $plugin_coupons, 'add_meta_boxes' );
+        $this->loader->add_action( 'save_post', $plugin_coupons, 'save_meta_box' );
+
         // Register shortcodes, content protection, and checkout processing
         $this->loader->add_action( 'init', $plugin_public, 'track_referral_visit' );
         $this->loader->add_action( 'wmp_subscription_created', $plugin_public, 'record_referral_on_subscription', 10, 3 );
+        $this->loader->add_action( 'wp_ajax_wmp_apply_coupon', $plugin_public, 'apply_coupon_ajax_handler' );
+        $this->loader->add_action( 'wp_ajax_nopriv_wmp_apply_coupon', $plugin_public, 'apply_coupon_ajax_handler' );
         $this->loader->add_action( 'init', $plugin_public, 'register_shortcodes' );
         $this->loader->add_action( 'init', $plugin_public, 'process_checkout' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_return' );
