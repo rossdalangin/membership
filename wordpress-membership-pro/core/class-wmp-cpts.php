@@ -27,6 +27,7 @@ class WMP_CPTs {
     public function register() {
         $this->register_membership_plan_cpt();
         $this->register_payment_cpt();
+        $this->register_secure_files_cpt();
         $this->register_plan_category_taxonomy();
     }
 
@@ -136,5 +137,48 @@ class WMP_CPTs {
             'show_in_rest'      => true,
         );
         register_taxonomy( 'wmp_plan_category', array( 'wmp_membership_plan' ), $args );
+    }
+
+    /**
+     * Register the Secure Files Custom Post Type.
+     *
+     * @since    1.0.4
+     * @access   private
+     */
+    private function register_secure_files_cpt() {
+        $labels = array(
+            'name'                  => _x( 'Secure Files', 'Post Type General Name', 'wordpress-membership-pro' ),
+            'singular_name'         => _x( 'Secure File', 'Post Type Singular Name', 'wordpress-membership-pro' ),
+            'menu_name'             => __( 'Secure Files', 'wordpress-membership-pro' ),
+            'all_items'             => __( 'All Files', 'wordpress-membership-pro' ),
+            'add_new_item'          => __( 'Add New File', 'wordpress-membership-pro' ),
+            'add_new'               => __( 'Add New', 'wordpress-membership-pro' ),
+            'new_item'              => __( 'New File', 'wordpress-membership-pro' ),
+            'edit_item'             => __( 'Edit File', 'wordpress-membership-pro' ),
+            'update_item'           => __( 'Update File', 'wordpress-membership-pro' ),
+            'view_item'             => __( 'View File', 'wordpress-membership-pro' ),
+            'search_items'          => __( 'Search Files', 'wordpress-membership-pro' ),
+        );
+        $args = array(
+            'label'                 => __( 'Secure File', 'wordpress-membership-pro' ),
+            'description'           => __( 'For managing protected file downloads.', 'wordpress-membership-pro' ),
+            'labels'                => $labels,
+            'supports'              => array( 'title' ),
+            'hierarchical'          => false,
+            'public'                => false,
+            'show_ui'               => true,
+            'show_in_menu'          => true,
+            'menu_position'         => 21,
+            'menu_icon'             => 'dashicons-media-default',
+            'show_in_admin_bar'     => false,
+            'show_in_nav_menus'     => false,
+            'can_export'            => true,
+            'has_archive'           => false,
+            'exclude_from_search'   => true,
+            'publicly_queryable'    => false,
+            'capability_type'       => 'post',
+            'show_in_rest'          => false,
+        );
+        register_post_type( 'wmp_secure_file', $args );
     }
 }

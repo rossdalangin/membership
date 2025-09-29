@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordPress Membership Pro - Documentation</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 20px auto; padding: 20px; }
+        h1, h2, h3 { color: #23282d; }
+        h1 { border-bottom: 2px solid #ddd; padding-bottom: 10px; }
+        h2 { border-bottom: 1px solid #eee; padding-bottom: 8px; margin-top: 40px; }
+        code { background-color: #f6f8fa; padding: 3px 6px; border-radius: 4px; font-family: monospace; }
+        .toc { background-color: #f9f9f9; border: 1px solid #e3e3e3; padding: 15px; border-radius: 5px; margin-bottom: 30px; }
+        .toc ul { list-style: none; padding-left: 0; }
+        .toc ul li { margin-bottom: 5px; }
+        .toc ul li a { text-decoration: none; color: #0073aa; }
+        .toc ul li a:hover { text-decoration: underline; }
+        .notice { padding: 15px; border-left: 4px solid #72aee6; background-color: #f8f9fa; margin: 20px 0; }
+        .notice.warning { border-left-color: #ffb900; }
+        .notice.success { border-left-color: #46b450; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f5f5f5; }
+    </style>
+</head>
+<body>
+
+    <h1>WordPress Membership Pro Documentation</h1>
+
+    <div class="toc">
+        <h3>Table of Contents</h3>
+        <ul>
+            <li><a href="#installation">1. Installation & Setup</a></li>
+            <li><a href="#pages">2. Creating Essential Pages (Shortcodes)</a></li>
+            <li><a href="#management">3. Managing Your Site</a>
+                <ul>
+                    <li><a href="#manage-members">3.1. Managing Customers & Subscribers</a></li>
+                    <li><a href="#manage-content">3.2. Managing Content (Restriction & Drip)</a></li>
+                    <li><a href="#manage-files">3.3. Managing Secure File Downloads</a></li>
+                    <li><a href="#manage-otos">3.4. Managing One-Time Offers (Upsells/Downsells)</a></li>
+                </ul>
+            </li>
+            <li><a href="#affiliates">4. Affiliate Management</a>
+                <ul>
+                    <li><a href="#affiliate-setup">4.1. Affiliate Registration & Dashboard</a></li>
+                    <li><a href="#manage-affiliates">4.2. Managing Affiliates (Admin)</a></li>
+                    <li><a href="#affiliate-payouts">4.3. Paying Affiliates</a></li>
+                </ul>
+            </li>
+            <li><a href="#reports">5. Reports & Analytics</a></li>
+            <li><a href="#sample-data">6. Creating Sample Data for Testing</a></li>
+        </ul>
+    </div>
+
+    <h2 id="installation">1. Installation & Setup</h2>
+    <h3>Installation</h3>
+    <p>Installing WordPress Membership Pro is the same as any other WordPress plugin:</p>
+    <ol>
+        <li>Download the plugin's <code>.zip</code> file.</li>
+        <li>From your WordPress dashboard, navigate to <strong>Plugins &rarr; Add New</strong>.</li>
+        <li>Click the <strong>Upload Plugin</strong> button at the top of the page.</li>
+        <li>Choose the downloaded <code>.zip</code> file and click <strong>Install Now</strong>.</li>
+        <li>Once installed, click <strong>Activate Plugin</strong>.</li>
+    </ol>
+
+    <h3>Initial Setup</h3>
+    <p>After activation, you should configure your payment gateways.</p>
+    <ol>
+        <li>Navigate to <strong>Membership Plans &rarr; Settings</strong>.</li>
+        <li>Under the "Payment Gateways" section, enter your API keys for Stripe, PayPal, or other enabled gateways.</li>
+        <li>Configure any other settings on this page as needed.</li>
+        <li>Click <strong>Save Changes</strong>.</li>
+    </ol>
+    <div class="notice">
+        <strong>Note on Stripe:</strong> For the Stripe gateway to function, your server must have the official Stripe PHP library installed. If it is missing, a notice will appear at the top of your admin dashboard with instructions.
+    </div>
+
+    <h2 id="pages">2. Creating Essential Pages (Shortcodes)</h2>
+    <p>The plugin uses shortcodes to display dynamic content on the front-end. You need to create several pages and place the corresponding shortcodes on them.</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Page Purpose</th>
+                <th>Recommended Page Name</th>
+                <th>Shortcode to Use</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Display your membership plans for purchase.</td>
+                <td>Plans</td>
+                <td><code>[wmp_plans]</code></td>
+            </tr>
+            <tr>
+                <td>Handle the final step of the purchase process.</td>
+                <td>Checkout</td>
+                <td><code>[wmp_checkout]</code></td>
+            </tr>
+            <tr>
+                <td>Allow users to view their subscriptions and billing history.</td>
+                <td>My Account</td>
+                <td><code>[wmp_account]</code></td>
+            </tr>
+            <tr>
+                <td>Display a thank you message after a purchase.</td>
+                <td>Thank You</td>
+                <td><code>[wmp_thank_you]</code></td>
+            </tr>
+            <tr>
+                <td>Display a special upsell or downsell offer.</td>
+                <td>One-Time Offer</td>
+                <td><code>[wmp_oto]</code></td>
+            </tr>
+            <tr>
+                <td>Allow users to sign up for your affiliate program.</td>
+                <td>Affiliate Program</td>
+                <td><code>[wmp_affiliate_registration]</code></td>
+            </tr>
+            <tr>
+                <td>Allow affiliates to view their stats and referral link.</td>
+                <td>Affiliate Dashboard</td>
+                <td><code>[wmp_affiliate_dashboard]</code></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2 id="management">3. Managing Your Site</h2>
+
+    <h3 id="manage-members">3.1. Managing Customers & Subscribers</h3>
+    <p>All active and past subscriptions are listed in the WordPress admin area.</p>
+    <ul>
+        <li><strong>List of Subscribers:</strong> Navigate to <strong>Subscriptions</strong> from the main admin menu. This screen lists all subscriptions from all customers.</li>
+        <li><strong>List of All Transactions:</strong> Navigate to <strong>Subscriptions &rarr; Transactions</strong>.</li>
+        <li><strong>Communicating with Customers:</strong> The plugin currently does not have a built-in email system. We recommend using a dedicated email marketing plugin and integrating it with your member roles. You can find user email addresses by navigating to the main WordPress <strong>Users</strong> menu.</li>
+    </ul>
+
+    <h3 id="manage-content">3.2. Managing Content (Restriction & Drip)</h3>
+    <p>You can protect your posts and pages and schedule their release for members.</p>
+    <ol>
+        <li>Edit any post or page.</li>
+        <li>On the right-hand sidebar, you will find the <strong>Membership Access</strong> meta box.</li>
+        <li><strong>To restrict content:</strong> Select a membership plan from the "Restrict access to members of:" dropdown. Only members of that plan will be able to see the content.</li>
+        <li><strong>To schedule (drip) content:</strong> In the "Release Delay (in days)" field, enter the number of days after a member signs up that they should get access to this content. For example, entering <code>7</code> will make the content available one week after their subscription starts.</li>
+        <li>Save or update the post.</li>
+    </ol>
+
+    <h3 id="manage-files">3.3. Managing Secure File Downloads</h3>
+    <p>You can offer protected files that are only accessible to specific members.</p>
+    <ol>
+        <li>Navigate to <strong>Secure Files &rarr; Add New</strong>.</li>
+        <li>Give your file a title (e.g., "My Awesome E-book").</li>
+        <li>In the "File Details & Restrictions" box, click <strong>Select or Upload File</strong> to choose a file from your media library.</li>
+        <li>In the "Access Restriction" section, check the box next to each membership plan that should have access to this file.</li>
+        <li>Publish the file.</li>
+        <li>To display the download link on a post or page, use the <code>[wmp_download]</code> shortcode with the post ID of the secure file. For example: <code>[wmp_download id="123" text="Download Your E-book"]</code>.</li>
+    </ol>
+
+    <h3 id="manage-otos">3.4. Managing One-Time Offers (Upsells/Downsells)</h3>
+    <p>You can create special offers that are presented to users after they purchase a primary plan.</p>
+    <ol>
+        <li>First, create a new membership plan that will serve as your offer. Navigate to <strong>Membership Plans &rarr; Add New</strong>.</li>
+        <li>In the "One-Time Offer (OTO) Settings" section of the plan editor, check the box for <strong>Is this a One-Time Offer?</strong>. This will hide it from the main plans page.</li>
+        <li><strong>To create an upsell:</strong> In the "Upsell for Plan" dropdown, select the primary plan that should trigger this offer. After a user buys that primary plan, they will be redirected to this upsell offer.</li>
+        <li><strong>To create a downsell:</strong> In the "Downsell for Plan" dropdown, select the primary plan. This offer will be shown if the user *declines* the main upsell for that primary plan.</li>
+        <li>Publish the OTO plan.</li>
+    </ol>
+
+    <h2 id="affiliates">4. Affiliate Management</h2>
+
+    <h3 id="affiliate-setup">4.1. Affiliate Registration & Dashboard</h3>
+    <ul>
+        <li><strong>How to Apply:</strong> Create a page with the <code>[wmp_affiliate_registration]</code> shortcode. Users can visit this page to apply to become an affiliate.</li>
+        <li><strong>How to Track Sales:</strong> Create a page with the <code>[wmp_affiliate_dashboard]</code> shortcode. Once an affiliate is approved, they can visit this page to get their unique referral link and see their performance statistics.</li>
+    </ul>
+
+    <h3 id="manage-affiliates">4.2. Managing Affiliates (Admin)</h3>
+    <p>Navigate to <strong>Subscriptions &rarr; Affiliates</strong>. Here you can see a list of all affiliates and their status. You can approve or reject pending applications from this screen.</p>
+
+    <h3 id="affiliate-payouts">4.3. Paying Affiliates</h3>
+    <ol>
+        <li>When an affiliate reaches the minimum payout threshold, they can request a payout from their dashboard.</li>
+        <li>As an admin, navigate to <strong>Affiliates &rarr; Payouts</strong> to see a list of all pending payout requests.</li>
+        <li>Process the payment to your affiliate through your chosen method (e.g., PayPal, bank transfer). This part is handled outside the plugin.</li>
+        <li>Once you have sent the payment, you can mark the payout request as "Completed" in the admin dashboard (future feature). For now, this page serves as a record of all payout requests.</li>
+    </ol>
+
+    <h2 id="reports">5. Reports & Analytics</h2>
+    <p>The plugin includes a dedicated reporting section to help you track your business's performance.</p>
+    <ul>
+        <li>Navigate to <strong>Reports</strong> from the main admin menu.</li>
+        <li>Here you will find key metrics like <strong>Monthly Recurring Revenue (MRR)</strong>.</li>
+        <li>You can also export your transaction data to a CSV file from this page for further analysis in spreadsheet software like Excel or Google Sheets.</li>
+    </ul>
+
+    <h2 id="sample-data">6. Creating Sample Data for Testing</h2>
+    <p>To effectively test your new membership site, you should create some sample data:</p>
+    <ol>
+        <li><strong>Create Plans:</strong> Go to <strong>Membership Plans &rarr; Add New</strong> to create at least two different tiers (e.g., "Basic" and "Pro").</li>
+        <li><strong>Create a Coupon:</strong> Go to <strong>Subscriptions &rarr; Coupons</strong> to create a test coupon (e.g., 10% off).</li>
+        <li><strong>Create a Test User:</strong> Go to <strong>Users &rarr; Add New</strong>. Create a new user with the "Subscriber" role.</li>
+        <li><strong>Simulate a Purchase:</strong> Log in as the test user (or use a different browser) and go through the purchase process on your "Plans" page. Use the test coupon and a simulated payment method to create a subscription and transaction record.</li>
+        <li><strong>Test Affiliate Flow:</strong> Have your test user apply to be an affiliate. As an admin, approve their application. Then, use their referral link in an incognito window to simulate another user signing up. Check the affiliate dashboard to see if the conversion was tracked.</li>
+    </ol>
+
+</body>
+</html>

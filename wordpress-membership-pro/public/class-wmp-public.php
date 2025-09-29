@@ -127,6 +127,66 @@ class WMP_Public {
     }
 
     /**
+     * Handle the secure file download request.
+     *
+     * @since 1.0.4
+     */
+    public function handle_secure_file_download() {
+        if ( ! isset( $_GET['wmp_action'] ) || 'download_secure_file' !== $_GET['wmp_action'] ) {
+            return;
+        }
+
+        if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_download_secure_file_nonce' ) ) {
+            wp_die( 'Security check failed.' );
+        }
+
+        if ( ! is_user_logged_in() ) {
+            wp_die( 'You must be logged in to download this file.' );
+        }
+
+        $file_id = isset( $_GET['file_id'] ) ? absint( $_GET['file_id'] ) : 0;
+        if ( ! $file_id ) {
+            wp_die( 'Invalid file ID.' );
+        }
+
+        $restricted_to = get_post_meta( $file_id, '_wmp_restricted_to_plans', true );
+        $has_access = false;
+
+        if ( empty( $restricted_to ) ) {
+            $has_access = true; // No restrictions
+        } else {
+            foreach ( $restricted_to as $plan_id ) {
+                if ( current_user_can( 'access_wmp_content_for_plan_' . $plan_id ) ) {
+                    $has_access = true;
+                    break;
+                }
+            }
+        }
+
+        if ( ! $has_access ) {
+            wp_die( 'You do not have permission to download this file.' );
+        }
+
+        $file_path = get_post_meta( $file_id, '_wmp_secure_file_path', true );
+        if ( ! $file_path || ! file_exists( $file_path ) ) {
+            wp_die( 'File not found or has been moved.' );
+        }
+
+        // --- File Delivery ---
+        // This is a basic implementation. A more robust solution would use
+        // x-sendfile or x-accel-redirect for better performance.
+        header( 'Content-Description: File Transfer' );
+        header( 'Content-Type: application/octet-stream' );
+        header( 'Content-Disposition: attachment; filename="' . basename( $file_path ) . '"' );
+        header( 'Expires: 0' );
+        header( 'Cache-Control: must-revalidate' );
+        header( 'Pragma: public' );
+        header( 'Content-Length: ' . filesize( $file_path ) );
+        readfile( $file_path );
+        exit;
+    }
+
+    /**
      * Process the checkout form submission.
      *
      * @since    1.0.0
@@ -326,6 +386,49 @@ class WMP_Public {
     }
 
     /**
+     * Process the affiliate payout request form submission.
+     *
+     * @since    1.0.4
+     */
+    public function process_payout_request() {
+        if ( ! isset( $_POST['wmp_action'] ) || 'request_payout' !== $_POST['wmp_action'] ) {
+            return;
+        }
+
+        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'wmp_request_payout_nonce' ) ) {
+            wp_die( 'Security check failed.' );
+        }
+
+        $affiliate_id = isset( $_POST['affiliate_id'] ) ? absint( $_POST['affiliate_id'] ) : 0;
+        $amount = isset( $_POST['amount'] ) ? floatval( $_POST['amount'] ) : 0.00;
+
+        if ( ! $affiliate_id || $amount <= 0 ) {
+            wp_die( 'Invalid payout request.' );
+        }
+
+        // Security check: ensure the current user is the one making the request
+        $affiliate = $this->affiliates_handler->get_affiliate( $affiliate_id );
+        if ( ! $affiliate || $affiliate->user_id != get_current_user_id() ) {
+            wp_die( 'You do not have permission to make this request.' );
+        }
+
+        $payouts_handler = new WMP_Payouts();
+        $payout_id = $payouts_handler->create_payout( array(
+            'affiliate_id' => $affiliate_id,
+            'amount'       => $amount,
+        ) );
+
+        if ( $payout_id ) {
+            $referrals_handler = new WMP_Referrals();
+            $referrals_handler->mark_referrals_as_paid( $affiliate_id );
+        }
+
+        $redirect_url = add_query_arg( 'wmp_message', 'payout_requested', get_permalink() );
+        wp_redirect( $redirect_url );
+        exit;
+    }
+
+    /**
      * Handle the user's return from PayPal after approval.
      *
      * @since    1.0.0
@@ -515,6 +618,8 @@ class WMP_Public {
         add_shortcode( 'wmp_account', array( $this->shortcodes, 'render_account_shortcode' ) );
         add_shortcode( 'wmp_checkout', array( $this->shortcodes, 'render_checkout_shortcode' ) );
         add_shortcode( 'wmp_thank_you', array( $this->shortcodes, 'render_thank_you_shortcode' ) );
+        add_shortcode( 'wmp_oto', array( $this->shortcodes, 'render_oto_shortcode' ) );
+        add_shortcode( 'wmp_download', array( $this->shortcodes, 'render_download_shortcode' ) );
         add_shortcode( 'wmp_affiliate_registration', array( $this->shortcodes, 'render_affiliate_registration_shortcode' ) );
         add_shortcode( 'wmp_affiliate_dashboard', array( $this->shortcodes, 'render_affiliate_dashboard_shortcode' ) );
     }

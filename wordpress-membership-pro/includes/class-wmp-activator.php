@@ -107,6 +107,20 @@ class WMP_Activator {
 
 		// Flush rewrite rules to ensure the new CPTs are recognized.
 		flush_rewrite_rules();
+
+		// Payouts Table
+		$table_name = $wpdb->prefix . 'wmp_payouts';
+		$sql = "CREATE TABLE $table_name (
+			id bigint(20) NOT NULL AUTO_INCREMENT,
+			affiliate_id bigint(20) NOT NULL,
+			amount decimal(10,2) NOT NULL,
+			status varchar(20) NOT NULL DEFAULT 'pending',
+			created_at datetime NOT NULL,
+			updated_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY affiliate_id (affiliate_id)
+		) $charset_collate;";
+		dbDelta( $sql );
 	}
 
 }

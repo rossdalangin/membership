@@ -107,4 +107,28 @@ class WMP_Referrals {
         global $wpdb;
         return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(id) FROM {$this->table_name} WHERE affiliate_id = %d AND transaction_id IS NOT NULL", $affiliate_id ) );
     }
+
+    /**
+     * Mark all of an affiliate's unpaid referrals as paid.
+     *
+     * @since 1.0.4
+     * @param int $affiliate_id The ID of the affiliate.
+     * @return bool True on success, false on failure.
+     */
+    public function mark_referrals_as_paid( $affiliate_id ) {
+        global $wpdb;
+
+        $result = $wpdb->update(
+            $this->table_name,
+            array( 'status' => 'paid' ),
+            array(
+                'affiliate_id' => $affiliate_id,
+                'status'       => 'unpaid',
+            ),
+            array( '%s' ),
+            array( '%d', '%s' )
+        );
+
+        return $result !== false;
+    }
 }

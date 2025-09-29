@@ -126,16 +126,21 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-coupons.php';
         require_once WMP_PLUGIN_DIR . 'includes/class-wmp-invoices.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-subscriptions-list-table.php';
+        require_once WMP_PLUGIN_DIR . 'admin/class-wmp-transactions-list-table.php';
+        require_once WMP_PLUGIN_DIR . 'admin/class-wmp-payouts-list-table.php';
         require_once WMP_PLUGIN_DIR . 'public/class-wmp-public.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-subscriptions.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-transactions.php';
+        require_once WMP_PLUGIN_DIR . 'core/class-wmp-reports.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-capabilities.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-gateways.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-emails.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-email-hooks.php';
         require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-affiliates.php';
         require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-referrals.php';
+        require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-payouts.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-affiliates-list-table.php';
+        require_once WMP_PLUGIN_DIR . 'admin/class-wmp-payouts-list-table.php';
         require_once WMP_PLUGIN_DIR . 'api/class-wmp-api.php';
 
         $this->loader = new WMP_Loader();
@@ -172,6 +177,28 @@ class WordPress_Membership_Pro {
         // REST API hooks
         $plugin_api = new WMP_API( $this->subscriptions_handler );
         $this->loader->add_action( 'rest_api_init', $plugin_api, 'register_routes' );
+
+        // Block registration
+        $this->loader->add_action( 'init', $this, 'register_blocks' );
+    }
+
+    /**
+     * Register all custom Gutenberg blocks.
+     *
+     * @since    1.0.5
+     */
+    public function register_blocks() {
+        wp_register_script(
+            'wmp-plans-block-editor',
+            WMP_PLUGIN_URL . 'blocks/plans/index.js',
+            array( 'wp-blocks', 'wp-i18n', 'wp-element' ),
+            WMP_VERSION,
+            true
+        );
+
+        register_block_type( WMP_PLUGIN_DIR . 'blocks/plans', array(
+            'editor_script' => 'wmp-plans-block-editor',
+        ) );
     }
 
     /**
@@ -193,7 +220,10 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'admin_init', $plugin_admin, 'register_settings' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_subscription_actions' );
         $this->loader->add_action( 'admin_init', $plugin_admin, 'process_affiliate_actions' );
+        $this->loader->add_action( 'admin_init', $plugin_admin, 'process_transaction_actions' );
+        $this->loader->add_action( 'admin_init', $plugin_admin, 'process_export_actions' );
         $this->loader->add_action( 'admin_notices', $plugin_admin, 'check_stripe_library' );
+        $this->loader->add_action( 'admin_enqueue_scripts', $plugin_admin, 'enqueue_admin_scripts' );
     }
 
     /**
@@ -222,10 +252,12 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'init', $plugin_public, 'register_shortcodes' );
         $this->loader->add_action( 'init', $plugin_public, 'process_checkout' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_invoice_download' );
+        $this->loader->add_action( 'init', $plugin_public, 'handle_secure_file_download' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_return' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_gcash_return' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_subscription_return' );
         $this->loader->add_action( 'init', $plugin_public, 'process_affiliate_registration' );
+        $this->loader->add_action( 'init', $plugin_public, 'process_payout_request' );
         $this->loader->add_filter( 'the_content', $plugin_public, 'filter_the_content' );
     }
 
