@@ -39,13 +39,24 @@ class WMP_API {
     private $subscriptions_handler;
 
     /**
+     * The transaction handler.
+     *
+     * @since 1.0.7
+     * @access private
+     * @var WMP_Transactions
+     */
+    private $transactions_handler;
+
+    /**
      * Initialize the class.
      *
      * @since 1.0.0
      * @param WMP_Subscriptions $subscriptions_handler
+     * @param WMP_Transactions  $transactions_handler
      */
-    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
+    public function __construct( WMP_Subscriptions $subscriptions_handler, WMP_Transactions $transactions_handler ) {
         $this->subscriptions_handler = $subscriptions_handler;
+        $this->transactions_handler = $transactions_handler;
     }
 
     /**
@@ -61,7 +72,9 @@ class WMP_API {
                 'permission_callback' => '__return_true', // Webhooks don't have user authentication
             ),
         ) );
+
     }
+
 
     /**
      * Handle incoming webhooks from PayPal.

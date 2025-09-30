@@ -71,16 +71,7 @@ class WMP_Shortcodes {
      */
     public function render_plans_shortcode( $atts ) {
         $options = get_option( 'wmp_settings' );
-        $checkout_page_id = isset( $options['checkout_page_id'] ) ? $options['checkout_page_id'] : 0;
-        $checkout_page_url = $checkout_page_id ? get_permalink( $checkout_page_id ) : home_url( '/checkout' );
-
-        $atts = shortcode_atts(
-            array(
-                'checkout_page_url' => $checkout_page_url,
-            ),
-            $atts,
-            'wmp_plans'
-        );
+        $checkout_page_id = isset( $options['checkout_page_id'] ) ? absint( $options['checkout_page_id'] ) : 0;
 
         $change_subscription_id = isset( $_GET['change_subscription_id'] ) ? absint( $_GET['change_subscription_id'] ) : 0;
         $current_subscription = null;
@@ -111,6 +102,11 @@ class WMP_Shortcodes {
 
         if ( $plans->have_posts() ) {
             $output .= '<div class="wmp-plans-grid">';
+
+            if ( ! $checkout_page_id && current_user_can( 'manage_options' ) ) {
+                $output .= '<p style="color: red; font-weight: bold;">' . __( 'Admin Notice: Please set a "Checkout Page" in Membership -> Settings -> Page Settings to enable the sign-up buttons.', 'wordpress-membership-pro' ) . '</p>';
+            }
+
             while ( $plans->have_posts() ) {
                 $plans->the_post();
                 $plan_id = get_the_ID();
@@ -121,19 +117,25 @@ class WMP_Shortcodes {
                 }
 
                 $price = get_post_meta( $plan_id, '_wmp_price', true );
-                $button_text = __( 'Sign Up', 'wordpress-membership-pro' );
-                $checkout_url = add_query_arg( 'plan_id', $plan_id, $atts['checkout_page_url'] );
-
-                if ( $change_subscription_id ) {
-                    $button_text = ( (float) $price > (float) $current_plan_price ) ? __( 'Upgrade', 'wordpress-membership-pro' ) : __( 'Downgrade', 'wordpress-membership-pro' );
-                    $checkout_url = add_query_arg( 'change_subscription_id', $change_subscription_id, $checkout_url );
-                }
 
                 $output .= '<div class="wmp-plan">';
                 $output .= '<h2>' . get_the_title() . '</h2>';
                 $output .= '<div class="wmp-plan-description">' . get_the_content() . '</div>';
                 $output .= '<div class="wmp-plan-price">$' . esc_html( $price ) . '</div>';
-                $output .= '<a href="' . esc_url( $checkout_url ) . '" class="wmp-button">' . $button_text . '</a>';
+
+                if ( $checkout_page_id ) {
+                    $checkout_page_url = get_permalink( $checkout_page_id );
+                    $button_text = __( 'Sign Up', 'wordpress-membership-pro' );
+                    $checkout_url = add_query_arg( 'plan_id', $plan_id, $checkout_page_url );
+
+                    if ( $change_subscription_id ) {
+                        $button_text = ( (float) $price > (float) $current_plan_price ) ? __( 'Upgrade', 'wordpress-membership-pro' ) : __( 'Downgrade', 'wordpress-membership-pro' );
+                        $checkout_url = add_query_arg( 'change_subscription_id', $change_subscription_id, $checkout_url );
+                    }
+
+                    $output .= '<a href="' . esc_url( $checkout_url ) . '" class="wmp-button">' . $button_text . '</a>';
+                }
+
                 $output .= '</div>';
             }
             $output .= '</div>';
@@ -206,9 +208,10 @@ class WMP_Shortcodes {
         if ( ! empty( $gateways ) ) {
             $output .= '<h4>' . __( 'Select Payment Method', 'wordpress-membership-pro' ) . '</h4>';
             $output .= '<ul class="wmp-payment-gateways">';
+            $is_first = true;
             foreach ( $gateways as $gateway ) {
                 $output .= '<li>';
-                $output .= '<input type="radio" name="wmp_payment_gateway" id="wmp_gateway_' . esc_attr( $gateway->id ) . '" value="' . esc_attr( $gateway->id ) . '"' . checked( $gateway->id, 'stripe', false ) . ' class="wmp-gateway-radio" data-gateway-id="' . esc_attr( $gateway->id ) . '"/>';
+                $output .= '<input type="radio" name="wmp_payment_gateway" id="wmp_gateway_' . esc_attr( $gateway->id ) . '" value="' . esc_attr( $gateway->id ) . '"' . checked( $is_first, true, false ) . ' class="wmp-gateway-radio" data-gateway-id="' . esc_attr( $gateway->id ) . '"/>';
                 $output .= '<label for="wmp_gateway_' . esc_attr( $gateway->id ) . '">' . esc_html( $gateway->title ) . '</label>';
 
                 if ( method_exists( $gateway, 'get_payment_form_fields' ) ) {
@@ -218,6 +221,7 @@ class WMP_Shortcodes {
                 }
 
                 $output .= '</li>';
+                $is_first = false;
             }
             $output .= '</ul>';
         }

@@ -79,7 +79,26 @@ class WMP_Affiliates {
 
         $result = $wpdb->insert( $this->table_name, $data );
 
-        return $result ? $wpdb->insert_id : false;
+        if ( $result ) {
+            $affiliate_id = $wpdb->insert_id;
+
+            // Send notification to admin
+            $admin_email = get_option( 'admin_email' );
+            $subject = __( 'New Affiliate Application Received', 'wordpress-membership-pro' );
+            $user = get_userdata( $data['user_id'] );
+            $message = sprintf(
+                __( 'A new affiliate application has been submitted by %s.', 'wordpress-membership-pro' ),
+                $user->display_name
+            ) . "\r\n\r\n";
+            $message .= __( 'You can review this application here:', 'wordpress-membership-pro' ) . "\r\n";
+            $message .= admin_url( 'admin.php?page=wmp-affiliates' );
+
+            wp_mail( $admin_email, $subject, $message );
+
+            return $affiliate_id;
+        }
+
+        return false;
     }
 
     /**

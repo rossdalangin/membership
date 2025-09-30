@@ -118,8 +118,16 @@ class WMP_Public {
 
         $transaction_id = absint( $_GET['transaction_id'] );
 
-        // In a real plugin, you would add more robust security checks here
-        // to ensure the current user is allowed to view this invoice.
+        // Security Check: Ensure the current user owns this transaction or is an admin.
+        if ( ! is_user_logged_in() ) {
+            wp_die( __( 'You must be logged in to download invoices.', 'wordpress-membership-pro' ) );
+        }
+
+        $transaction = $this->transactions_handler->get_transaction( $transaction_id );
+
+        if ( ! $transaction || ( $transaction->user_id != get_current_user_id() && ! current_user_can( 'manage_options' ) ) ) {
+            wp_die( __( 'You do not have permission to view this invoice.', 'wordpress-membership-pro' ) );
+        }
 
         require_once WMP_PLUGIN_DIR . 'includes/vendor/fpdf/fpdf.php';
         $invoices = new WMP_Invoices();
@@ -641,14 +649,7 @@ class WMP_Public {
      * @since    1.0.0
      */
     public function enqueue_scripts() {
-        wp_enqueue_script( $this->plugin_name . '-stripe', 'https://js.stripe.com/v3/', array(), null, true );
-        wp_enqueue_script( $this->plugin_name, WMP_PLUGIN_URL . 'public/js/wmp-public.js', array( 'jquery', $this->plugin_name . '-stripe' ), $this->version, true );
-
-        $options = get_option( 'wmp_settings' );
-        $stripe_vars = array(
-            'publishable_key' => isset( $options['stripe_publishable_key'] ) ? $options['stripe_publishable_key'] : ''
-        );
-        wp_localize_script( $this->plugin_name, 'wmp_stripe_vars', $stripe_vars );
+        wp_enqueue_script( $this->plugin_name, WMP_PLUGIN_URL . 'public/js/wmp-public.js', array( 'jquery' ), $this->version, true );
 
         // Localize AJAX URL for the public script
         wp_localize_script( $this->plugin_name, 'wmp_ajax', array( 'ajax_url' => admin_url( 'admin-ajax.php' ) ) );

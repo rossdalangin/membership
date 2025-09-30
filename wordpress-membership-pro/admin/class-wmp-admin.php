@@ -570,24 +570,6 @@ class WMP_Admin {
         }
     }
 
-    /**
-     * Check if the Stripe PHP library is loaded and display a notice if it is not.
-     *
-     * @since 1.0.1
-     */
-    public function check_stripe_library() {
-        $options = get_option( 'wmp_settings' );
-        $stripe_enabled = ! empty( $options['stripe_publishable_key'] ) && ! empty( $options['stripe_secret_key'] );
-
-        if ( $stripe_enabled && ! class_exists( '\Stripe\Stripe' ) ) {
-            $message = sprintf(
-                // translators: %s is a link to the Stripe PHP library on GitHub.
-                __( '<strong>WordPress Membership Pro:</strong> The Stripe gateway is enabled, but the Stripe PHP library is not installed. Please install it via Composer or include it in your project. You can find the library <a href="%s" target="_blank">here</a>.', 'wordpress-membership-pro' ),
-                'https://github.com/stripe/stripe-php'
-            );
-            echo '<div class="notice notice-error"><p>' . $message . '</p></div>';
-        }
-    }
 
     /**
      * Render the settings page.
@@ -625,31 +607,6 @@ class WMP_Admin {
             'wmp-settings'
         );
 
-        // Stripe Settings
-        add_settings_field(
-            'wmp_stripe_publishable_key',
-            __( 'Stripe Publishable Key', 'wordpress-membership-pro' ),
-            array( $this, 'render_text_input' ),
-            'wmp-settings',
-            'wmp_settings_gateways',
-            array(
-                'label_for' => 'wmp_stripe_publishable_key',
-                'option_name' => 'wmp_settings',
-                'key' => 'stripe_publishable_key',
-            )
-        );
-        add_settings_field(
-            'wmp_stripe_secret_key',
-            __( 'Stripe Secret Key', 'wordpress-membership-pro' ),
-            array( $this, 'render_text_input' ),
-            'wmp-settings',
-            'wmp_settings_gateways',
-            array(
-                'label_for' => 'wmp_stripe_secret_key',
-                'option_name' => 'wmp_settings',
-                'key' => 'stripe_secret_key',
-            )
-        );
 
         // Offline Payment Settings
         add_settings_field(
