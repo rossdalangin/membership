@@ -97,7 +97,6 @@ class WordPress_Membership_Pro {
         $this->gateways_manager      = new WMP_Gateways( $this->subscriptions_handler );
         $this->affiliates_handler    = new WMP_Affiliates();
         $this->referrals_handler     = new WMP_Referrals();
-        $this->load_textdomain();
         $this->define_core_hooks();
         if ( is_admin() ) {
             $this->define_admin_hooks();
@@ -150,6 +149,8 @@ class WordPress_Membership_Pro {
      * @access   private
      */
     private function define_core_hooks() {
+        $this->loader->add_action( 'init', $this, 'load_textdomain' );
+
         // Capability hooks
         $plugin_capabilities = new WMP_Capabilities( $this->subscriptions_handler );
         $this->loader->add_action( 'wmp_subscription_activated', $plugin_capabilities, 'on_subscription_activated', 10, 2 );

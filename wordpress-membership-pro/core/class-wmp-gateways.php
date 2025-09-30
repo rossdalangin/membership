@@ -59,6 +59,11 @@ class WMP_Gateways {
         $gateway_files = glob( WMP_PLUGIN_DIR . 'gateways/class-wmp-gateway-*.php' );
 
         foreach ( $gateway_files as $gateway_file ) {
+            // Do not load the Stripe gateway, as it is incomplete.
+            if ( strpos( $gateway_file, 'stripe' ) !== false ) {
+                continue;
+            }
+
             require_once $gateway_file;
             $class_name = basename( $gateway_file, '.php' );
             $class_name = str_replace( 'class-wmp-gateway-', '', $class_name );
