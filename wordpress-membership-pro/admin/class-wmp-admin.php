@@ -71,16 +71,6 @@ class WMP_Admin {
                 'default'
             );
         }
-
-        // Secure File Meta Box
-        add_meta_box(
-            'wmp_secure_file_details',
-            __( 'File Details & Restrictions', 'wordpress-membership-pro' ),
-            array( $this, 'render_secure_file_meta_box' ),
-            'wmp_secure_file',
-            'normal',
-            'high'
-        );
     }
 
     /**
@@ -119,121 +109,6 @@ class WMP_Admin {
             'wmp-affiliates',
             array( $this, 'render_affiliates_page' )
         );
-
-        // Transactions Submenu Page
-        add_submenu_page(
-            'wmp-subscriptions', // Parent slug
-            __( 'Transactions', 'wordpress-membership-pro' ),
-            __( 'Transactions', 'wordpress-membership-pro' ),
-            'manage_options',
-            'wmp-transactions',
-            array( $this, 'render_transactions_page' )
-        );
-
-        // Payouts Submenu Page
-        add_submenu_page(
-            'wmp-affiliates', // Parent slug
-            __( 'Payouts', 'wordpress-membership-pro' ),
-            __( 'Payouts', 'wordpress-membership-pro' ),
-            'manage_options',
-            'wmp-payouts',
-            array( $this, 'render_payouts_page' )
-        );
-
-        // Reports Page
-        add_menu_page(
-            __( 'Reports', 'wordpress-membership-pro' ),
-            __( 'Reports', 'wordpress-membership-pro' ),
-            'manage_options',
-            'wmp-reports',
-            array( $this, 'render_reports_page' ),
-            'dashicons-chart-area',
-            26
-        );
-    }
-
-    /**
-     * Render the reports page.
-     *
-     * @since    1.0.5
-     */
-    public function render_reports_page() {
-        $reports_handler = new WMP_Reports();
-        $mrr = $reports_handler->get_mrr();
-        $churn_rate = $reports_handler->get_churn_rate();
-        $ltv = $reports_handler->get_ltv();
-        ?>
-        <div class="wrap">
-            <h1><?php _e( 'Reports', 'wordpress-membership-pro' ); ?></h1>
-
-            <div style="display: flex; gap: 20px;">
-                <div class="wmp-reports-widget">
-                    <h2><?php _e( 'Monthly Recurring Revenue (MRR)', 'wordpress-membership-pro' ); ?></h2>
-                    <p class="wmp-reports-stat"><?php echo '$' . number_format( $mrr, 2 ); ?></p>
-                </div>
-
-                <div class="wmp-reports-widget">
-                    <h2><?php _e( 'Churn Rate (Last 30 Days)', 'wordpress-membership-pro' ); ?></h2>
-                    <p class="wmp-reports-stat"><?php echo number_format( $churn_rate, 2 ); ?>%</p>
-                </div>
-
-                <div class="wmp-reports-widget">
-                    <h2><?php _e( 'Customer Lifetime Value (LTV)', 'wordpress-membership-pro' ); ?></h2>
-                    <p class="wmp-reports-stat"><?php echo '$' . number_format( $ltv, 2 ); ?></p>
-                </div>
-            </div>
-
-            <hr/>
-
-            <h2><?php _e( 'Export Data', 'wordpress-membership-pro' ); ?></h2>
-            <form method="post" action="">
-                <input type="hidden" name="wmp_action" value="export_transactions" />
-                <?php wp_nonce_field( 'wmp_export_nonce', '_wpnonce_export' ); ?>
-                <button type="submit" class="button"><?php _e( 'Export Transactions to CSV', 'wordpress-membership-pro' ); ?></button>
-            </form>
-
-        </div>
-        <?php
-    }
-
-    /**
-     * Render the payouts list table page.
-     *
-     * @since    1.0.4
-     */
-    public function render_payouts_page() {
-        $payouts_list_table = new WMP_Payouts_List_Table();
-        $payouts_list_table->prepare_items();
-        ?>
-        <div class="wrap">
-            <h1 class="wp-heading-inline"><?php _e( 'Payouts', 'wordpress-membership-pro' ); ?></h1>
-            <form method="post">
-                <?php
-                $payouts_list_table->display();
-                ?>
-            </form>
-        </div>
-        <?php
-    }
-
-    /**
-     * Render the transactions list table page.
-     *
-     * @since    1.0.3
-     */
-    public function render_transactions_page() {
-        $transactions_list_table = new WMP_Transactions_List_Table();
-        $transactions_list_table->prepare_items();
-        ?>
-        <div class="wrap">
-            <h1 class="wp-heading-inline"><?php _e( 'Transactions', 'wordpress-membership-pro' ); ?></h1>
-            <form method="post">
-                <?php
-                $transactions_list_table->display();
-                ?>
-            </form>
-        </div>
-        <?php
     }
 
     /**
@@ -320,107 +195,6 @@ class WMP_Admin {
     }
 
     /**
-     * Process the payout list table actions.
-     *
-     * @since    1.0.4
-     */
-    public function process_payout_actions() {
-        if ( ! isset( $_GET['page'] ) || 'wmp-payouts' !== $_GET['page'] ) {
-            return;
-        }
-
-        $action = isset( $_GET['action'] ) ? sanitize_key( $_GET['action'] ) : false;
-        $payout_id = isset( $_GET['payout_id'] ) ? absint( $_GET['payout_id'] ) : 0;
-
-        if ( ! $payout_id || ! $action ) {
-            return;
-        }
-
-        $payouts_handler = new WMP_Payouts();
-        $redirect_url = admin_url( 'admin.php?page=wmp-payouts' );
-
-        if ( 'wmp_approve_payout' === $action ) {
-            if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_approve_payout_nonce' ) ) {
-                wp_die( 'Security check failed.' );
-            }
-            $payouts_handler->update_payout_status( $payout_id, 'completed' );
-            $redirect_url = add_query_arg( 'wmp_message', 'payout_approved', $redirect_url );
-        }
-
-        if ( 'wmp_reject_payout' === $action ) {
-            if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_reject_payout_nonce' ) ) {
-                wp_die( 'Security check failed.' );
-            }
-            $payouts_handler->update_payout_status( $payout_id, 'rejected' );
-            $redirect_url = add_query_arg( 'wmp_message', 'payout_rejected', $redirect_url );
-        }
-
-        wp_redirect( $redirect_url );
-        exit;
-    }
-
-    /**
-     * Process the transaction list table actions.
-     *
-     * @since    1.0.3
-     */
-    public function process_transaction_actions() {
-        if ( ! isset( $_GET['page'] ) || 'wmp-transactions' !== $_GET['page'] ) {
-            return;
-        }
-
-        if ( ! isset( $_GET['action'] ) || 'wmp_refund_transaction' !== $_GET['action'] ) {
-            return;
-        }
-
-        if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_refund_transaction_nonce' ) ) {
-            wp_die( 'Security check failed.' );
-        }
-
-        $transaction_id = isset( $_GET['transaction_id'] ) ? absint( $_GET['transaction_id'] ) : 0;
-        if ( ! $transaction_id ) {
-            wp_die( 'Invalid transaction ID.' );
-        }
-
-        $transactions_handler = new WMP_Transactions();
-        $transactions_handler->refund_transaction( $transaction_id );
-
-        // --- IMPORTANT: GATEWAY INTEGRATION REQUIRED ---
-        // The above code only marks the transaction as "refunded" in the local database.
-        // For a complete refund solution, you must also integrate with the relevant payment gateway's API
-        // to process the actual financial transaction. This would involve fetching the transaction details,
-        // identifying the gateway used (e.g., 'stripe', 'paypal'), and calling a method like `$gateway->process_refund( $transaction_id )`.
-        // This is a placeholder for that future development.
-        // --- END OF IMPORTANT NOTE ---
-
-        $redirect_url = add_query_arg( array(
-            'page' => 'wmp-transactions',
-            'wmp_message' => 'transaction_refunded'
-        ), admin_url( 'admin.php' ) );
-
-        wp_redirect( $redirect_url );
-        exit;
-    }
-
-    /**
-     * Process the export actions from the reports page.
-     *
-     * @since    1.0.5
-     */
-    public function process_export_actions() {
-        if ( ! isset( $_POST['wmp_action'] ) || 'export_transactions' !== $_POST['wmp_action'] ) {
-            return;
-        }
-
-        if ( ! isset( $_POST['_wpnonce_export'] ) || ! wp_verify_nonce( $_POST['_wpnonce_export'], 'wmp_export_nonce' ) ) {
-            wp_die( 'Security check failed.' );
-        }
-
-        $reports_handler = new WMP_Reports();
-        $reports_handler->export_transactions_to_csv();
-    }
-
-    /**
      * Process the affiliate list table actions.
      *
      * @since    1.0.0
@@ -459,75 +233,6 @@ class WMP_Admin {
     }
 
     /**
-     * Render the meta box for secure file details.
-     *
-     * @since    1.0.4
-     * @param    WP_Post    $post    The post object.
-     */
-    public function render_secure_file_meta_box( $post ) {
-        wp_nonce_field( 'wmp_save_secure_file_details', 'wmp_secure_file_details_nonce' );
-
-        $file_path = get_post_meta( $post->ID, '_wmp_secure_file_path', true );
-        $restricted_to = get_post_meta( $post->ID, '_wmp_restricted_to_plans', true );
-        $restricted_to = is_array( $restricted_to ) ? $restricted_to : array();
-
-        // --- File Uploader ---
-        echo '<h4>' . __( 'File Upload', 'wordpress-membership-pro' ) . '</h4>';
-        echo '<p>';
-        echo '<input type="hidden" name="wmp_secure_file_attachment_id" id="wmp_secure_file_attachment_id" value="" />';
-        echo '<input type="text" id="wmp_file_display_name" value="' . esc_attr( basename( $file_path ) ) . '" style="width: 70%;" readonly />';
-        echo ' <button type="button" id="wmp_upload_file_button" class="button">' . __( 'Select or Upload File', 'wordpress-membership-pro' ) . '</button>';
-        echo '</p>';
-        echo '<p class="description">' . __( 'Select a file from the media library. It will be moved to a secure location upon saving.', 'wordpress-membership-pro' ) . '</p>';
-
-        // --- Plan Restriction ---
-        echo '<hr><h4>' . __( 'Access Restriction', 'wordpress-membership-pro' ) . '</h4>';
-        $plans_query = new WP_Query( array(
-            'post_type'      => 'wmp_membership_plan',
-            'posts_per_page' => -1,
-            'post_status'    => 'publish',
-        ) );
-
-        if ( $plans_query->have_posts() ) {
-            echo '<div style="max-height: 200px; overflow-y: scroll; border: 1px solid #ddd; padding: 10px;">';
-            while ( $plans_query->have_posts() ) {
-                $plans_query->the_post();
-                $plan_id = get_the_ID();
-                echo '<label><input type="checkbox" name="wmp_restricted_to_plans[]" value="' . esc_attr( $plan_id ) . '" ' . checked( in_array( $plan_id, $restricted_to ), true, false ) . '> ' . esc_html( get_the_title() ) . '</label><br/>';
-            }
-            echo '</div>';
-            wp_reset_postdata();
-        } else {
-            echo '<p>' . __( 'No membership plans found.', 'wordpress-membership-pro' ) . '</p>';
-        }
-    }
-
-    /**
-     * Enqueue scripts and styles for the admin area.
-     *
-     * @since 1.0.4
-     * @param string $hook The current admin page.
-     */
-    public function enqueue_admin_scripts( $hook ) {
-        global $post;
-        if ( ( 'post-new.php' === $hook || 'post.php' === $hook ) && isset( $post->post_type ) && 'wmp_secure_file' === $post->post_type ) {
-            wp_enqueue_media();
-            wp_enqueue_script( $this->plugin_name . '-admin', WMP_PLUGIN_URL . 'admin/js/wmp-admin.js', array( 'jquery' ), $this->version, false );
-        }
-
-        // Enqueue block editor script
-        if ( 'post-new.php' === $hook || 'post.php' === $hook ) {
-            wp_enqueue_script(
-                'wmp-plans-block-editor',
-                WMP_PLUGIN_URL . 'blocks/plans/index.js',
-                array( 'wp-blocks', 'wp-i18n', 'wp-element' ),
-                WMP_VERSION,
-                true
-            );
-        }
-    }
-
-    /**
      * Display admin notices.
      *
      * @since    1.0.0
@@ -554,22 +259,12 @@ class WMP_Admin {
             case 'affiliate_rejected':
                 $message = __( 'Affiliate rejected successfully.', 'wordpress-membership-pro' );
                 break;
-            case 'transaction_refunded':
-                $message = __( 'Transaction refunded successfully.', 'wordpress-membership-pro' );
-                break;
-            case 'payout_approved':
-                $message = __( 'Payout approved successfully.', 'wordpress-membership-pro' );
-                break;
-            case 'payout_rejected':
-                $message = __( 'Payout rejected successfully.', 'wordpress-membership-pro' );
-                break;
         }
 
         if ( ! empty( $message ) ) {
             echo '<div class="notice notice-success is-dismissible"><p>' . esc_html( $message ) . '</p></div>';
         }
     }
-
 
     /**
      * Render the settings page.
@@ -702,6 +397,28 @@ class WMP_Admin {
             )
         );
 
+        // Pages Section
+        add_settings_section(
+            'wmp_settings_pages',
+            __( 'Page Settings', 'wordpress-membership-pro' ),
+            '__return_false',
+            'wmp-settings'
+        );
+
+        add_settings_field(
+            'wmp_checkout_page_id',
+            __( 'Checkout Page', 'wordpress-membership-pro' ),
+            array( $this, 'render_page_dropdown' ),
+            'wmp-settings',
+            'wmp_settings_pages',
+            array(
+                'label_for'   => 'wmp_checkout_page_id',
+                'option_name' => 'wmp_settings',
+                'key'         => 'checkout_page_id',
+                'description' => __( 'Select the page where the [wmp_checkout] shortcode is located. This will be the destination for the "Sign Up" buttons.', 'wordpress-membership-pro' ),
+            )
+        );
+
         // Emails Section
         add_settings_section(
             'wmp_settings_emails',
@@ -749,171 +466,6 @@ class WMP_Admin {
                 'description' => __( 'Send a notification for offline orders that are awaiting payment.', 'wordpress-membership-pro' ),
             )
         );
-
-        // Pages Section
-        add_settings_section(
-            'wmp_settings_pages',
-            __( 'Page Settings', 'wordpress-membership-pro' ),
-            '__return_false',
-            'wmp-settings'
-        );
-
-        add_settings_field(
-            'wmp_checkout_page_id',
-            __( 'Checkout Page', 'wordpress-membership-pro' ),
-            array( $this, 'render_page_select' ),
-            'wmp-settings',
-            'wmp_settings_pages',
-            array(
-                'label_for' => 'wmp_checkout_page_id',
-                'option_name' => 'wmp_settings',
-                'key' => 'checkout_page_id',
-                'description' => __( 'Select the page where the [wmp_checkout] shortcode is located.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        add_settings_field(
-            'wmp_affiliate_registration_page_id',
-            __( 'Affiliate Registration Page', 'wordpress-membership-pro' ),
-            array( $this, 'render_page_select' ),
-            'wmp-settings',
-            'wmp_settings_pages',
-            array(
-                'label_for' => 'wmp_affiliate_registration_page_id',
-                'option_name' => 'wmp_settings',
-                'key' => 'affiliate_registration_page_id',
-                'description' => __( 'Select the page where the [wmp_affiliate_registration] shortcode is located.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        add_settings_field(
-            'wmp_plans_page_id',
-            __( 'Plans Page', 'wordpress-membership-pro' ),
-            array( $this, 'render_page_select' ),
-            'wmp-settings',
-            'wmp_settings_pages',
-            array(
-                'label_for' => 'wmp_plans_page_id',
-                'option_name' => 'wmp_settings',
-                'key' => 'plans_page_id',
-                'description' => __( 'Select the page where the [wmp_plans] shortcode is located. This is used for the "Change Plan" link.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        add_settings_field(
-            'wmp_oto_page_id',
-            __( 'One-Time Offer Page', 'wordpress-membership-pro' ),
-            array( $this, 'render_page_select' ),
-            'wmp-settings',
-            'wmp_settings_pages',
-            array(
-                'label_for' => 'wmp_oto_page_id',
-                'option_name' => 'wmp_settings',
-                'key' => 'oto_page_id',
-                'description' => __( 'Select the page where the [wmp_oto] shortcode is located.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        add_settings_field(
-            'wmp_thank_you_page_id',
-            __( 'Thank You Page', 'wordpress-membership-pro' ),
-            array( $this, 'render_page_select' ),
-            'wmp-settings',
-            'wmp_settings_pages',
-            array(
-                'label_for' => 'wmp_thank_you_page_id',
-                'option_name' => 'wmp_settings',
-                'key' => 'thank_you_page_id',
-                'description' => __( 'Select the page where the [wmp_thank_you] shortcode is located.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        add_settings_field(
-            'wmp_account_page_id',
-            __( 'Account Page', 'wordpress-membership-pro' ),
-            array( $this, 'render_page_select' ),
-            'wmp-settings',
-            'wmp_settings_pages',
-            array(
-                'label_for' => 'wmp_account_page_id',
-                'option_name' => 'wmp_settings',
-                'key' => 'account_page_id',
-                'description' => __( 'Select the page where the [wmp_account] shortcode is located.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        // Integrations Section
-        add_settings_section(
-            'wmp_settings_integrations',
-            __( 'Integrations', 'wordpress-membership-pro' ),
-            '__return_false',
-            'wmp-settings'
-        );
-
-        // Mailchimp API Key
-        add_settings_field(
-            'wmp_mailchimp_api_key',
-            __( 'Mailchimp API Key', 'wordpress-membership-pro' ),
-            array( $this, 'render_text_input' ),
-            'wmp-settings',
-            'wmp_settings_integrations',
-            array(
-                'label_for' => 'wmp_mailchimp_api_key',
-                'option_name' => 'wmp_settings',
-                'key' => 'mailchimp_api_key',
-                'description' => __( 'Enter your Mailchimp API key to enable integration.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        // Affiliate Settings Section
-        add_settings_section(
-            'wmp_settings_affiliates',
-            __( 'Affiliate Settings', 'wordpress-membership-pro' ),
-            '__return_false',
-            'wmp-settings'
-        );
-
-        add_settings_field(
-            'wmp_affiliate_commission_rate',
-            __( 'Commission Rate (%)', 'wordpress-membership-pro' ),
-            array( $this, 'render_text_input' ),
-            'wmp-settings',
-            'wmp_settings_affiliates',
-            array(
-                'label_for' => 'wmp_affiliate_commission_rate',
-                'option_name' => 'wmp_settings',
-                'key' => 'affiliate_commission_rate',
-                'description' => __( 'The commission rate affiliates earn for successful referrals.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        add_settings_field(
-            'wmp_affiliate_cookie_expiration',
-            __( 'Cookie Expiration (Days)', 'wordpress-membership-pro' ),
-            array( $this, 'render_text_input' ),
-            'wmp-settings',
-            'wmp_settings_affiliates',
-            array(
-                'label_for' => 'wmp_affiliate_cookie_expiration',
-                'option_name' => 'wmp_settings',
-                'key' => 'affiliate_cookie_expiration',
-                'description' => __( 'The number of days the referral tracking cookie is valid.', 'wordpress-membership-pro' ),
-            )
-        );
-
-        add_settings_field(
-            'wmp_affiliate_minimum_payout',
-            __( 'Minimum Payout ($)', 'wordpress-membership-pro' ),
-            array( $this, 'render_text_input' ),
-            'wmp-settings',
-            'wmp_settings_affiliates',
-            array(
-                'label_for' => 'wmp_affiliate_minimum_payout',
-                'option_name' => 'wmp_settings',
-                'key' => 'affiliate_minimum_payout',
-                'description' => __( 'The minimum earnings an affiliate must have to request a payout.', 'wordpress-membership-pro' ),
-            )
-        );
     }
 
     /**
@@ -944,22 +496,24 @@ class WMP_Admin {
     }
 
     /**
-     * Render a page select dropdown for a settings page.
+     * Render a page dropdown field for a settings page.
      *
-     * @since    1.0.6
+     * @since    1.0.4
      * @param    array    $args    The arguments for the field.
      */
-    public function render_page_select( $args ) {
+    public function render_page_dropdown( $args ) {
         $options = get_option( $args['option_name'] );
-        $value = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
+        $value   = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
 
-        $pages = get_pages();
-        echo '<select id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '">';
-        echo '<option value="">' . __( '— Select a Page —', 'wordpress-membership-pro' ) . '</option>';
-        foreach ( $pages as $page ) {
-            echo '<option value="' . esc_attr( $page->ID ) . '" ' . selected( $value, $page->ID, false ) . '>' . esc_html( $page->post_title ) . '</option>';
-        }
-        echo '</select>';
+        $dropdown_args = array(
+            'name'              => esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ),
+            'id'                => esc_attr( $args['label_for'] ),
+            'selected'          => esc_attr( $value ),
+            'show_option_none'  => __( '— Select a Page —', 'wordpress-membership-pro' ),
+            'option_none_value' => '0',
+            'echo'              => 1,
+        );
+        wp_dropdown_pages( $dropdown_args );
 
         if ( ! empty( $args['description'] ) ) {
             echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
@@ -1083,54 +637,6 @@ class WMP_Admin {
         echo '</select>';
         echo '<br/><em>' . __('This role will be assigned to the user upon activation of this plan.', 'wordpress-membership-pro') . '</em>';
         echo '</p>';
-
-        echo '<hr/><h4>' . __( 'One-Time Offer (OTO) Settings', 'wordpress-membership-pro' ) . '</h4>';
-
-        $is_oto = get_post_meta( $post->ID, '_wmp_is_oto', true );
-        echo '<p>';
-        echo '<label for="wmp_is_oto"><input type="checkbox" id="wmp_is_oto" name="wmp_is_oto" value="1" ' . checked( 1, $is_oto, false ) . ' /> ';
-        echo '<strong>' . __( 'Is this a One-Time Offer?', 'wordpress-membership-pro' ) . '</strong></label>';
-        echo '<p class="description">' . __( 'If checked, this plan will not be shown on the main plans page.', 'wordpress-membership-pro' ) . '</p>';
-        echo '</p>';
-
-        $plans_query = new WP_Query( array(
-            'post_type'      => 'wmp_membership_plan',
-            'posts_per_page' => -1,
-            'post_status'    => 'publish',
-            'post__not_in'   => array( $post->ID ),
-        ) );
-
-        $upsell_for = get_post_meta( $post->ID, '_wmp_oto_upsell_for', true );
-        echo '<p>';
-        echo '<label for="wmp_oto_upsell_for"><strong>' . __( 'Upsell for Plan:', 'wordpress-membership-pro' ) . '</strong></label><br/>';
-        echo '<select id="wmp_oto_upsell_for" name="wmp_oto_upsell_for" style="width: 100%;">';
-        echo '<option value="">' . __( '— None —', 'wordpress-membership-pro' ) . '</option>';
-        if ( $plans_query->have_posts() ) {
-            while ( $plans_query->have_posts() ) {
-                $plans_query->the_post();
-                echo '<option value="' . esc_attr( get_the_ID() ) . '" ' . selected( $upsell_for, get_the_ID(), false ) . '>' . esc_html( get_the_title() ) . '</option>';
-            }
-            wp_reset_postdata();
-        }
-        echo '</select>';
-        echo '<p class="description">' . __( 'Show this plan as an upsell after a user purchases the selected plan.', 'wordpress-membership-pro' ) . '</p>';
-        echo '</p>';
-
-        $downsell_for = get_post_meta( $post->ID, '_wmp_oto_downsell_for', true );
-        echo '<p>';
-        echo '<label for="wmp_oto_downsell_for"><strong>' . __( 'Downsell for Plan:', 'wordpress-membership-pro' ) . '</strong></label><br/>';
-        echo '<select id="wmp_oto_downsell_for" name="wmp_oto_downsell_for" style="width: 100%;">';
-        echo '<option value="">' . __( '— None —', 'wordpress-membership-pro' ) . '</option>';
-        if ( $plans_query->have_posts() ) {
-            while ( $plans_query->have_posts() ) {
-                $plans_query->the_post();
-                echo '<option value="' . esc_attr( get_the_ID() ) . '" ' . selected( $downsell_for, get_the_ID(), false ) . '>' . esc_html( get_the_title() ) . '</option>';
-            }
-            wp_reset_postdata();
-        }
-        echo '</select>';
-        echo '<p class="description">' . __( 'Show this plan as a downsell if a user declines an upsell offer.', 'wordpress-membership-pro' ) . '</p>';
-        echo '</p>';
     }
 
     /**
@@ -1143,7 +649,6 @@ class WMP_Admin {
         wp_nonce_field( 'wmp_save_content_protection', 'wmp_content_protection_nonce' );
 
         $required_plan_id = get_post_meta( $post->ID, '_wmp_required_plan_id', true );
-        $drip_delay = get_post_meta( $post->ID, '_wmp_drip_delay', true );
 
         $plans_query = new WP_Query( array(
             'post_type'      => 'wmp_membership_plan',
@@ -1166,15 +671,6 @@ class WMP_Admin {
 
         echo '</select>';
         echo '</p>';
-
-        echo '<hr/>';
-
-        echo '<h4>' . __( 'Drip Content', 'wordpress-membership-pro' ) . '</h4>';
-        echo '<p>';
-        echo '<label for="wmp_drip_delay">' . __( 'Release Delay (in days)', 'wordpress-membership-pro' ) . '</label><br/>';
-        echo '<input type="number" id="wmp_drip_delay" name="wmp_drip_delay" value="' . esc_attr( $drip_delay ) . '" min="0" step="1" style="width: 100%;" />';
-        echo '<p class="description">' . __( 'Release this content X days after the user registers. Leave blank or 0 for immediate access.', 'wordpress-membership-pro' ) . '</p>';
-        echo '</p>';
     }
 
     /**
@@ -1195,54 +691,19 @@ class WMP_Admin {
 
         // Save Plan Details meta box
         if ( isset( $_POST['wmp_plan_details_nonce'] ) && wp_verify_nonce( $_POST['wmp_plan_details_nonce'], 'wmp_save_plan_details' ) ) {
-            $plan_fields = [
-                'wmp_price',
-                'wmp_billing_period',
-                'wmp_billing_frequency',
-                'wmp_trial_days',
-                'wmp_assigned_role',
-                'wmp_payment_type',
-                'wmp_oto_upsell_for',
-                'wmp_oto_downsell_for',
-            ];
+            $plan_fields = ['wmp_price', 'wmp_billing_period', 'wmp_billing_frequency', 'wmp_trial_days', 'wmp_assigned_role', 'wmp_payment_type'];
             foreach ($plan_fields as $field) {
                 if (isset($_POST[$field])) {
                     update_post_meta($post_id, '_' . $field, sanitize_text_field($_POST[$field]));
                 }
             }
-            // Handle checkbox
-            $is_oto = isset( $_POST['wmp_is_oto'] ) ? 1 : 0;
-            update_post_meta( $post_id, '_wmp_is_oto', $is_oto );
         }
 
         // Save Content Protection meta box
         if ( isset( $_POST['wmp_content_protection_nonce'] ) && wp_verify_nonce( $_POST['wmp_content_protection_nonce'], 'wmp_save_content_protection' ) ) {
             if ( isset( $_POST['wmp_required_plan_id'] ) ) {
-                update_post_meta( $post_id, '_wmp_required_plan_id', sanitize_text_field( $_POST['wmp_required_plan_id'] ) );
+                update_post_meta($post_id, '_wmp_required_plan_id', sanitize_text_field($_POST['wmp_required_plan_id']));
             }
-            if ( isset( $_POST['wmp_drip_delay'] ) ) {
-                update_post_meta( $post_id, '_wmp_drip_delay', absint( $_POST['wmp_drip_delay'] ) );
-            }
-        }
-
-        // Save Secure File Details meta box
-        if ( isset( $_POST['wmp_secure_file_details_nonce'] ) && wp_verify_nonce( $_POST['wmp_secure_file_details_nonce'], 'wmp_save_secure_file_details' ) ) {
-
-            // Handle the file moving
-            if ( ! empty( $_POST['wmp_secure_file_attachment_id'] ) ) {
-                $attachment_id = absint( $_POST['wmp_secure_file_attachment_id'] );
-                $file_path = get_attached_file( $attachment_id );
-
-                $upload_dir = WMP_PLUGIN_DIR . 'secure_uploads/';
-                $new_file_path = $upload_dir . basename( $file_path );
-
-                if ( copy( $file_path, $new_file_path ) ) {
-                    update_post_meta( $post_id, '_wmp_secure_file_path', $new_file_path );
-                }
-            }
-
-            $restricted_plans = isset( $_POST['wmp_restricted_to_plans'] ) ? array_map( 'absint', $_POST['wmp_restricted_to_plans'] ) : array();
-            update_post_meta( $post_id, '_wmp_restricted_to_plans', $restricted_plans );
         }
     }
 }

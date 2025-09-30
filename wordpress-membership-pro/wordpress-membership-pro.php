@@ -63,4 +63,4 @@ function run_wmp() {
 	$plugin->run();
 }
 
-run_wmp();
+add_action( 'plugins_loaded', 'run_wmp' );

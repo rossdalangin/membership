@@ -29,6 +29,15 @@ class WMP_Public {
     private $version;
 
     /**
+     * The subscription handler.
+     *
+     * @since 1.0.0
+     * @access private
+     * @var WMP_Subscriptions
+     */
+    private $subscriptions_handler;
+
+    /**
      * The content protection handler.
      *
      * @since    1.0.0
@@ -73,112 +82,19 @@ class WMP_Public {
      */
     private $referrals_handler;
 
-    /**
-     * The transaction handler instance.
-     *
-     * @since    1.0.2
-     * @access   private
-     * @var      WMP_Transactions    $transactions_handler    Handles transaction logic.
-     */
-    private $transactions_handler;
-
-    public function __construct( $plugin_name, $version, $subscriptions_handler, $gateways_manager, $affiliates_handler, $referrals_handler, $transactions_handler ) {
+    public function __construct( $plugin_name, $version, $subscriptions_handler, $gateways_manager, $affiliates_handler, $referrals_handler ) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
         $this->subscriptions_handler = $subscriptions_handler;
         $this->gateways_manager = $gateways_manager;
         $this->affiliates_handler = $affiliates_handler;
         $this->referrals_handler = $referrals_handler;
-        $this->transactions_handler = $transactions_handler;
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-content-protection.php';
-        $this->content_protection = new WMP_Content_Protection( $this->subscriptions_handler );
+        $this->content_protection = new WMP_Content_Protection();
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-shortcodes.php';
         $this->shortcodes = new WMP_Shortcodes( $this->subscriptions_handler, $this->gateways_manager, $this->affiliates_handler );
-    }
-
-    /**
-     * Handle the invoice download request.
-     *
-     * @since 1.0.2
-     */
-    public function handle_invoice_download() {
-        if ( ! isset( $_GET['wmp_action'] ) || 'download_invoice' !== $_GET['wmp_action'] ) {
-            return;
-        }
-
-        if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_download_invoice_nonce' ) ) {
-            wp_die( 'Security check failed.' );
-        }
-
-        if ( ! isset( $_GET['transaction_id'] ) ) {
-            wp_die( 'Invalid transaction ID.' );
-        }
-
-        $transaction_id = absint( $_GET['transaction_id'] );
-
-        // Security Check: Ensure the current user owns this transaction or is an admin.
-        if ( ! is_user_logged_in() ) {
-            wp_die( __( 'You must be logged in to download invoices.', 'wordpress-membership-pro' ) );
-        }
-
-        $transaction = $this->transactions_handler->get_transaction( $transaction_id );
-
-        if ( ! $transaction || ( $transaction->user_id != get_current_user_id() && ! current_user_can( 'manage_options' ) ) ) {
-            wp_die( __( 'You do not have permission to view this invoice.', 'wordpress-membership-pro' ) );
-        }
-
-        require_once WMP_PLUGIN_DIR . 'includes/vendor/fpdf/fpdf.php';
-        $invoices = new WMP_Invoices();
-        $invoices->generate_invoice( $transaction_id );
-    }
-
-    /**
-     * Handle the secure file download request.
-     *
-     * @since 1.0.4
-     */
-    public function handle_secure_file_download() {
-        if ( ! isset( $_GET['wmp_action'] ) || 'download_secure_file' !== $_GET['wmp_action'] ) {
-            return;
-        }
-
-        if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( $_GET['_wpnonce'], 'wmp_download_secure_file_nonce' ) ) {
-            wp_die( 'Security check failed.' );
-        }
-
-        if ( ! is_user_logged_in() ) {
-            wp_die( 'You must be logged in to download this file.' );
-        }
-
-        $file_id = isset( $_GET['file_id'] ) ? absint( $_GET['file_id'] ) : 0;
-        if ( ! $file_id ) {
-            wp_die( 'Invalid file ID.' );
-        }
-
-        $access_handler = new WMP_Access_Handler();
-        if ( ! $access_handler->has_access_to_file( get_current_user_id(), $file_id ) ) {
-            wp_die( 'You do not have permission to download this file.' );
-        }
-
-        $file_path = get_post_meta( $file_id, '_wmp_secure_file_path', true );
-        if ( ! $file_path || ! file_exists( $file_path ) ) {
-            wp_die( 'File not found or has been moved.' );
-        }
-
-        // --- File Delivery ---
-        // This is a basic implementation. A more robust solution would use
-        // x-sendfile or x-accel-redirect for better performance.
-        header( 'Content-Description: File Transfer' );
-        header( 'Content-Type: application/octet-stream' );
-        header( 'Content-Disposition: attachment; filename="' . basename( $file_path ) . '"' );
-        header( 'Expires: 0' );
-        header( 'Cache-Control: must-revalidate' );
-        header( 'Pragma: public' );
-        header( 'Content-Length: ' . filesize( $file_path ) );
-        readfile( $file_path );
-        exit;
     }
 
     /**
@@ -214,72 +130,40 @@ class WMP_Public {
             wp_die( 'Invalid payment gateway.' );
         }
 
-        $change_subscription_id = isset( $_POST['change_subscription_id'] ) ? absint( $_POST['change_subscription_id'] ) : 0;
-
-        // Security check if changing subscription
-        if ( $change_subscription_id ) {
-            $subscription = $this->subscriptions_handler->get_subscription( $change_subscription_id );
-            if ( ! $subscription || $subscription->user_id != get_current_user_id() ) {
-                wp_die( __( 'Invalid subscription change request.', 'wordpress-membership-pro' ) );
-            }
-        }
-
-        // For offline payments, we create or update the subscription directly.
+        // For offline payments, we create the subscription directly with an on-hold status.
         if ( 'offline' === $gateway_id ) {
-            $price = get_post_meta( $plan_id, '_wmp_price', true );
-            $subscription_id = null;
-
-            if ( $change_subscription_id ) {
-                $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id );
-                $subscription_id = $change_subscription_id;
-                $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_pending', home_url( '/account' ) );
-            } else {
-                $subscription_data = array(
-                    'user_id'                 => get_current_user_id(),
-                    'plan_id'                 => $plan_id,
-                    'status'                  => 'on-hold',
-                    'start_date'              => current_time( 'mysql' ),
-                    'gateway'                 => 'offline',
-                    'gateway_subscription_id' => '',
-                );
-                $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
-                $redirect_url = add_query_arg( 'wmp_message', 'order_received', home_url( '/thank-you' ) );
-            }
-
-            // Log the transaction for offline payments
-            if ( $subscription_id ) {
-                $this->transactions_handler->create_transaction( array(
-                    'subscription_id' => $subscription_id,
-                    'user_id'         => get_current_user_id(),
-                    'amount'          => $price,
-                    'gateway'         => 'offline',
-                    'transaction_id'  => 'offline_' . $subscription_id,
-                    'status'          => 'on-hold',
-                ) );
-            }
-
+            $subscription_data = array(
+                'user_id'                 => get_current_user_id(),
+                'plan_id'                 => $plan_id,
+                'status'                  => 'on-hold',
+                'start_date'              => current_time( 'mysql' ),
+                'gateway'                 => 'offline',
+                'gateway_subscription_id' => '',
+            );
+            $this->subscriptions_handler->create_subscription( $subscription_data );
+            $redirect_url = add_query_arg( 'wmp_message', 'order_received', home_url( '/thank-you' ) );
             wp_redirect( $redirect_url );
             exit;
         }
 
-        // For other gateways, we pass all data to their processing method.
+        // For other gateways like PayPal, we call their processing method.
         $data = [
-            'plan_id'                => $plan_id,
-            'user_id'                => get_current_user_id(),
-            'checkout_page_id'       => get_the_ID(),
-            'change_subscription_id' => $change_subscription_id,
+            'plan_id'          => $plan_id,
+            'user_id'          => get_current_user_id(),
+            'checkout_page_id' => get_the_ID(),
         ];
         $gateway->process_payment( $data );
     }
 
     /**
-     * Records a referral if a referral cookie is present when a transaction is created.
+     * Records a referral if a referral cookie is present during subscription creation.
      *
-     * @since    1.0.2
-     * @param    int    $transaction_id      The ID of the new transaction.
-     * @param    array  $transaction_data    The data for the transaction.
+     * @since    1.0.0
+     * @param    int    $subscription_id    The ID of the new subscription.
+     * @param    int    $user_id            The ID of the user.
+     * @param    int    $plan_id            The ID of the plan.
      */
-    public function record_referral_on_transaction( $transaction_id, $transaction_data ) {
+    public function record_referral_on_subscription( $subscription_id, $user_id, $plan_id ) {
         if ( ! isset( $_COOKIE['wmp_ref_id'] ) ) {
             return;
         }
@@ -295,11 +179,9 @@ class WMP_Public {
         }
 
         $referral_data = array(
-            'affiliate_id'   => $affiliate_id,
-            'referring_url'  => isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( $_SERVER['HTTP_REFERER'] ) : '',
-            'ip_address'     => $this->get_ip_address(),
-            'transaction_id' => $transaction_id,
-            'status'         => 'unpaid', // Referrals are unpaid until an admin processes them.
+            'affiliate_id'  => $affiliate_id,
+            'referring_url' => isset( $_SERVER['HTTP_REFERER'] ) ? esc_url_raw( $_SERVER['HTTP_REFERER'] ) : '',
+            'ip_address'    => $this->get_ip_address(),
         );
 
         $this->referrals_handler->create_referral( $referral_data );
@@ -335,10 +217,8 @@ class WMP_Public {
         if ( isset( $_GET['ref'] ) ) {
             $affiliate_id = absint( $_GET['ref'] );
             if ( $affiliate_id ) {
-                $options = get_option( 'wmp_settings' );
-                $cookie_expiration = isset( $options['affiliate_cookie_expiration'] ) ? absint( $options['affiliate_cookie_expiration'] ) : 30;
-                // Set a cookie to track the referral.
-                setcookie( 'wmp_ref_id', $affiliate_id, time() + ( 86400 * $cookie_expiration ), COOKIEPATH, COOKIE_DOMAIN );
+                // Set a cookie to track the referral for 30 days.
+                setcookie( 'wmp_ref_id', $affiliate_id, time() + ( 86400 * 30 ), COOKIEPATH, COOKIE_DOMAIN );
             }
         }
     }
@@ -369,61 +249,15 @@ class WMP_Public {
             return;
         }
 
-        $options = get_option( 'wmp_settings' );
-        $commission_rate = isset( $options['affiliate_commission_rate'] ) ? floatval( $options['affiliate_commission_rate'] ) : 20.00;
-
         $affiliate_data = array(
             'user_id'         => $user_id,
             'status'          => 'pending',
-            'commission_rate' => $commission_rate,
+            'commission_rate' => 20.00, // Default commission rate, could be a setting
         );
 
         $this->affiliates_handler->create_affiliate( $affiliate_data );
 
         $redirect_url = add_query_arg( 'wmp_message', 'affiliate_application_received', get_permalink() );
-        wp_redirect( $redirect_url );
-        exit;
-    }
-
-    /**
-     * Process the affiliate payout request form submission.
-     *
-     * @since    1.0.4
-     */
-    public function process_payout_request() {
-        if ( ! isset( $_POST['wmp_action'] ) || 'request_payout' !== $_POST['wmp_action'] ) {
-            return;
-        }
-
-        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'wmp_request_payout_nonce' ) ) {
-            wp_die( 'Security check failed.' );
-        }
-
-        $affiliate_id = isset( $_POST['affiliate_id'] ) ? absint( $_POST['affiliate_id'] ) : 0;
-        $amount = isset( $_POST['amount'] ) ? floatval( $_POST['amount'] ) : 0.00;
-
-        if ( ! $affiliate_id || $amount <= 0 ) {
-            wp_die( 'Invalid payout request.' );
-        }
-
-        // Security check: ensure the current user is the one making the request
-        $affiliate = $this->affiliates_handler->get_affiliate( $affiliate_id );
-        if ( ! $affiliate || $affiliate->user_id != get_current_user_id() ) {
-            wp_die( 'You do not have permission to make this request.' );
-        }
-
-        $payouts_handler = new WMP_Payouts();
-        $payout_id = $payouts_handler->create_payout( array(
-            'affiliate_id' => $affiliate_id,
-            'amount'       => $amount,
-        ) );
-
-        if ( $payout_id ) {
-            $referrals_handler = new WMP_Referrals();
-            $referrals_handler->mark_referrals_as_paid( $affiliate_id );
-        }
-
-        $redirect_url = add_query_arg( 'wmp_message', 'payout_requested', get_permalink() );
         wp_redirect( $redirect_url );
         exit;
     }
@@ -482,18 +316,7 @@ class WMP_Public {
                 'gateway_subscription_id' => $transaction_id,
             );
 
-            $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
-
-            if ( $subscription_id ) {
-                $this->transactions_handler->create_transaction( array(
-                    'subscription_id' => $subscription_id,
-                    'user_id'         => $user_id,
-                    'amount'          => $response['purchase_units'][0]['amount']['value'],
-                    'gateway'         => 'paypal',
-                    'transaction_id'  => $transaction_id,
-                    'status'          => 'completed',
-                ) );
-            }
+            $this->subscriptions_handler->create_subscription( $subscription_data );
 
             // Redirect to a success page.
             wp_redirect( home_url( '/thank-you?wmp_message=purchase_success' ) );
@@ -586,19 +409,7 @@ class WMP_Public {
             'gateway_subscription_id' => $transaction_id,
         );
 
-        $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
-
-        if ( $subscription_id ) {
-            $price = get_post_meta( $plan_id, '_wmp_price', true );
-            $this->transactions_handler->create_transaction( array(
-                'subscription_id' => $subscription_id,
-                'user_id'         => $user_id,
-                'amount'          => $price,
-                'gateway'         => 'gcash',
-                'transaction_id'  => $transaction_id,
-                'status'          => 'completed',
-            ) );
-        }
+        $this->subscriptions_handler->create_subscription( $subscription_data );
 
         // Redirect to a success page.
         wp_redirect( home_url( '/thank-you?wmp_message=purchase_success' ) );
@@ -616,8 +427,6 @@ class WMP_Public {
         add_shortcode( 'wmp_account', array( $this->shortcodes, 'render_account_shortcode' ) );
         add_shortcode( 'wmp_checkout', array( $this->shortcodes, 'render_checkout_shortcode' ) );
         add_shortcode( 'wmp_thank_you', array( $this->shortcodes, 'render_thank_you_shortcode' ) );
-        add_shortcode( 'wmp_oto', array( $this->shortcodes, 'render_oto_shortcode' ) );
-        add_shortcode( 'wmp_download', array( $this->shortcodes, 'render_download_shortcode' ) );
         add_shortcode( 'wmp_affiliate_registration', array( $this->shortcodes, 'render_affiliate_registration_shortcode' ) );
         add_shortcode( 'wmp_affiliate_dashboard', array( $this->shortcodes, 'render_affiliate_dashboard_shortcode' ) );
     }
@@ -649,49 +458,6 @@ class WMP_Public {
      * @since    1.0.0
      */
     public function enqueue_scripts() {
-        wp_enqueue_script( $this->plugin_name, WMP_PLUGIN_URL . 'public/js/wmp-public.js', array( 'jquery' ), $this->version, true );
-
-        // Localize AJAX URL for the public script
-        wp_localize_script( $this->plugin_name, 'wmp_ajax', array( 'ajax_url' => admin_url( 'admin-ajax.php' ) ) );
-    }
-
-    /**
-     * Handle the AJAX request for applying a coupon.
-     *
-     * @since 1.0.1
-     */
-    public function apply_coupon_ajax_handler() {
-        check_ajax_referer( 'wmp_apply_coupon_nonce', 'nonce' );
-
-        $coupon_code = isset( $_POST['coupon_code'] ) ? sanitize_text_field( $_POST['coupon_code'] ) : '';
-        $plan_id = isset( $_POST['plan_id'] ) ? absint( $_POST['plan_id'] ) : 0;
-
-        if ( empty( $coupon_code ) || empty( $plan_id ) ) {
-            wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wordpress-membership-pro' ) ) );
-        }
-
-        $plan_price = get_post_meta( $plan_id, '_wmp_price', true );
-        $coupon = WMP_Coupons::get_coupon_by_code( $coupon_code );
-
-        if ( ! $coupon ) {
-            wp_send_json_error( array( 'message' => __( 'Invalid coupon code.', 'wordpress-membership-pro' ) ) );
-        }
-
-        $usage_limit = get_post_meta( $coupon->ID, '_wmp_usage_limit', true );
-        $usage_count = get_post_meta( $coupon->ID, '_wmp_usage_count', true );
-
-        if ( ! empty( $usage_limit ) && absint( $usage_count ) >= absint( $usage_limit ) ) {
-            wp_send_json_error( array( 'message' => __( 'This coupon has reached its usage limit.', 'wordpress-membership-pro' ) ) );
-        }
-
-        $new_price = WMP_Coupons::calculate_discounted_price( $plan_price, $coupon );
-
-        wp_send_json_success( array(
-            'message' => __( 'Coupon applied successfully!', 'wordpress-membership-pro' ),
-            'original_price' => (float) $plan_price,
-            'discounted_price' => (float) $new_price,
-            'original_price_formatted' => '$' . number_format( (float)$plan_price, 2 ),
-            'discounted_price_formatted' => '$' . number_format( (float)$new_price, 2 ),
-        ) );
+        // wp_enqueue_script( $this->plugin_name, WMP_PLUGIN_URL . 'public/js/wmp-public.js', array( 'jquery' ), $this->version, false );
     }
 }

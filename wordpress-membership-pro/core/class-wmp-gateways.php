@@ -40,24 +40,12 @@ class WMP_Gateways {
     private $subscriptions_handler;
 
     /**
-     * The transaction handler.
-     *
-     * @since 1.0.2
-     * @access private
-     * @var WMP_Transactions
-     */
-    private $transactions_handler;
-
-    /**
      * Initialize the class and load the gateways.
      *
      * @since    1.0.0
-     * @param    WMP_Subscriptions    $subscriptions_handler    The subscription handler instance.
-     * @param    WMP_Transactions     $transactions_handler     The transaction handler instance.
      */
-    public function __construct( WMP_Subscriptions $subscriptions_handler, WMP_Transactions $transactions_handler ) {
+    public function __construct( WMP_Subscriptions $subscriptions_handler ) {
         $this->subscriptions_handler = $subscriptions_handler;
-        $this->transactions_handler = $transactions_handler;
         $this->load_gateways();
     }
 
@@ -74,10 +62,10 @@ class WMP_Gateways {
             require_once $gateway_file;
             $class_name = basename( $gateway_file, '.php' );
             $class_name = str_replace( 'class-wmp-gateway-', '', $class_name );
-            $class_name = 'WMP_Gateway_' . str_replace( ' ', '_', ucwords( str_replace( '-', ' ', $class_name ) ) );
+            $class_name = 'WMP_Gateway_' . str_replace( '-', '_', ucwords( $class_name, '-' ) );
 
             if ( class_exists( $class_name ) ) {
-                $gateway = new $class_name( $this->subscriptions_handler, $this->transactions_handler );
+                $gateway = new $class_name( $this->subscriptions_handler );
                 $this->gateways[ $gateway->id ] = $gateway;
             }
         }

@@ -91,36 +91,6 @@ class WMP_Activator {
 			KEY affiliate_id (affiliate_id)
 		) $charset_collate;";
 		dbDelta( $sql );
-
-		// --- CPT Registration and Rewrite Rule Flushing ---
-		// It's important to register CPTs before flushing rewrite rules on activation.
-
-		// Load dependencies for CPTs
-		require_once WMP_PLUGIN_DIR . 'core/class-wmp-cpts.php';
-		require_once WMP_PLUGIN_DIR . 'core/class-wmp-coupons.php';
-
-		// Register CPTs
-		$cpts = new WMP_CPTs();
-		$cpts->register();
-		$coupons = new WMP_Coupons();
-		$coupons->register_cpt();
-
-		// Flush rewrite rules to ensure the new CPTs are recognized.
-		flush_rewrite_rules();
-
-		// Payouts Table
-		$table_name = $wpdb->prefix . 'wmp_payouts';
-		$sql = "CREATE TABLE $table_name (
-			id bigint(20) NOT NULL AUTO_INCREMENT,
-			affiliate_id bigint(20) NOT NULL,
-			amount decimal(10,2) NOT NULL,
-			status varchar(20) NOT NULL DEFAULT 'pending',
-			created_at datetime NOT NULL,
-			updated_at datetime NOT NULL,
-			PRIMARY KEY  (id),
-			KEY affiliate_id (affiliate_id)
-		) $charset_collate;";
-		dbDelta( $sql );
 	}
 
 }
