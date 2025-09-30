@@ -63,7 +63,6 @@ class WMP_Gateways {
             if ( strpos( $gateway_file, 'stripe' ) !== false ) {
                 continue;
             }
-
             require_once $gateway_file;
             $class_name = basename( $gateway_file, '.php' );
             $class_name = str_replace( 'class-wmp-gateway-', '', $class_name );

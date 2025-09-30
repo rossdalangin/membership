@@ -302,6 +302,31 @@ class WMP_Admin {
             'wmp-settings'
         );
 
+        // Stripe Settings
+        add_settings_field(
+            'wmp_stripe_publishable_key',
+            __( 'Stripe Publishable Key', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_stripe_publishable_key',
+                'option_name' => 'wmp_settings',
+                'key' => 'stripe_publishable_key',
+            )
+        );
+        add_settings_field(
+            'wmp_stripe_secret_key',
+            __( 'Stripe Secret Key', 'wordpress-membership-pro' ),
+            array( $this, 'render_text_input' ),
+            'wmp-settings',
+            'wmp_settings_gateways',
+            array(
+                'label_for' => 'wmp_stripe_secret_key',
+                'option_name' => 'wmp_settings',
+                'key' => 'stripe_secret_key',
+            )
+        );
 
         // Offline Payment Settings
         add_settings_field(
@@ -397,28 +422,6 @@ class WMP_Admin {
             )
         );
 
-        // Pages Section
-        add_settings_section(
-            'wmp_settings_pages',
-            __( 'Page Settings', 'wordpress-membership-pro' ),
-            '__return_false',
-            'wmp-settings'
-        );
-
-        add_settings_field(
-            'wmp_checkout_page_id',
-            __( 'Checkout Page', 'wordpress-membership-pro' ),
-            array( $this, 'render_page_dropdown' ),
-            'wmp-settings',
-            'wmp_settings_pages',
-            array(
-                'label_for'   => 'wmp_checkout_page_id',
-                'option_name' => 'wmp_settings',
-                'key'         => 'checkout_page_id',
-                'description' => __( 'Select the page where the [wmp_checkout] shortcode is located. This will be the destination for the "Sign Up" buttons.', 'wordpress-membership-pro' ),
-            )
-        );
-
         // Emails Section
         add_settings_section(
             'wmp_settings_emails',
@@ -490,31 +493,6 @@ class WMP_Admin {
         $options = get_option( $args['option_name'] );
         $value = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
         echo '<textarea id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '" rows="5" class="large-text">' . esc_textarea( $value ) . '</textarea>';
-        if ( ! empty( $args['description'] ) ) {
-            echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
-        }
-    }
-
-    /**
-     * Render a page dropdown field for a settings page.
-     *
-     * @since    1.0.4
-     * @param    array    $args    The arguments for the field.
-     */
-    public function render_page_dropdown( $args ) {
-        $options = get_option( $args['option_name'] );
-        $value   = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
-
-        $dropdown_args = array(
-            'name'              => esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ),
-            'id'                => esc_attr( $args['label_for'] ),
-            'selected'          => esc_attr( $value ),
-            'show_option_none'  => __( '— Select a Page —', 'wordpress-membership-pro' ),
-            'option_none_value' => '0',
-            'echo'              => 1,
-        );
-        wp_dropdown_pages( $dropdown_args );
-
         if ( ! empty( $args['description'] ) ) {
             echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
         }

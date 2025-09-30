@@ -29,15 +29,6 @@ class WMP_Public {
     private $version;
 
     /**
-     * The subscription handler.
-     *
-     * @since 1.0.0
-     * @access private
-     * @var WMP_Subscriptions
-     */
-    private $subscriptions_handler;
-
-    /**
      * The content protection handler.
      *
      * @since    1.0.0

@@ -98,9 +98,7 @@ class WordPress_Membership_Pro {
         $this->affiliates_handler    = new WMP_Affiliates();
         $this->referrals_handler     = new WMP_Referrals();
         $this->define_core_hooks();
-        if ( is_admin() ) {
-            $this->define_admin_hooks();
-        }
+        $this->define_admin_hooks();
         $this->define_public_hooks();
     }
 
@@ -118,7 +116,7 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'public/class-wmp-public.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-subscriptions.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-capabilities.php';
-        require_once WMP_PLUGIN_DIR . 'core/class-wmp-gateways.php';
+        require_once WMP_PLUGIN_DIR . 'core/class-wmp-gateways-v3.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-emails.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-email-hooks.php';
         require_once WMP_PLUGIN_DIR . 'affiliates/class-wmp-affiliates.php';
@@ -130,15 +128,16 @@ class WordPress_Membership_Pro {
     }
 
     /**
-     * Load the plugin text domain for translation.
+     * Define the locale for this plugin for internationalization.
      *
      * @since    1.0.0
+     * @access   private
      */
     public function load_textdomain() {
         load_plugin_textdomain(
             'wordpress-membership-pro',
             false,
-            basename( WMP_PLUGIN_DIR ) . '/languages/'
+            dirname( dirname( plugin_basename( __FILE__ ) ) ) . '/languages/'
         );
     }
 

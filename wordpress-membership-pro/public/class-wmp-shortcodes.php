@@ -70,24 +70,13 @@ class WMP_Shortcodes {
      * @return   string    The shortcode output.
      */
     public function render_plans_shortcode( $atts ) {
-        $options = get_option( 'wmp_settings' );
-        $checkout_page_id = isset( $options['checkout_page_id'] ) ? absint( $options['checkout_page_id'] ) : 0;
-
-        $change_subscription_id = isset( $_GET['change_subscription_id'] ) ? absint( $_GET['change_subscription_id'] ) : 0;
-        $current_subscription = null;
-        $current_plan_price = null;
-        $current_plan_id = null;
-
-        if ( $change_subscription_id && is_user_logged_in() ) {
-            $current_subscription = $this->subscriptions_handler->get_subscription( $change_subscription_id );
-            // Ensure the user owns this subscription
-            if ( $current_subscription && $current_subscription->user_id == get_current_user_id() ) {
-                $current_plan_id = $current_subscription->plan_id;
-                $current_plan_price = get_post_meta( $current_plan_id, '_wmp_price', true );
-            } else {
-                $change_subscription_id = 0; // Invalid subscription, reset.
-            }
-        }
+        $atts = shortcode_atts(
+            array(
+                'checkout_page_url' => '/checkout', // Default checkout page slug
+            ),
+            $atts,
+            'wmp_plans'
+        );
 
         $args = array(
             'post_type'      => 'wmp_membership_plan',
@@ -102,40 +91,16 @@ class WMP_Shortcodes {
 
         if ( $plans->have_posts() ) {
             $output .= '<div class="wmp-plans-grid">';
-
-            if ( ! $checkout_page_id && current_user_can( 'manage_options' ) ) {
-                $output .= '<p style="color: red; font-weight: bold;">' . __( 'Admin Notice: Please set a "Checkout Page" in Membership -> Settings -> Page Settings to enable the sign-up buttons.', 'wordpress-membership-pro' ) . '</p>';
-            }
-
             while ( $plans->have_posts() ) {
                 $plans->the_post();
-                $plan_id = get_the_ID();
-
-                // Skip the current plan if the user is changing their subscription
-                if ( $change_subscription_id && $plan_id == $current_plan_id ) {
-                    continue;
-                }
-
-                $price = get_post_meta( $plan_id, '_wmp_price', true );
+                $price = get_post_meta( get_the_ID(), '_wmp_price', true );
+                $checkout_url = add_query_arg( 'plan_id', get_the_ID(), $atts['checkout_page_url'] );
 
                 $output .= '<div class="wmp-plan">';
                 $output .= '<h2>' . get_the_title() . '</h2>';
                 $output .= '<div class="wmp-plan-description">' . get_the_content() . '</div>';
                 $output .= '<div class="wmp-plan-price">$' . esc_html( $price ) . '</div>';
-
-                if ( $checkout_page_id ) {
-                    $checkout_page_url = get_permalink( $checkout_page_id );
-                    $button_text = __( 'Sign Up', 'wordpress-membership-pro' );
-                    $checkout_url = add_query_arg( 'plan_id', $plan_id, $checkout_page_url );
-
-                    if ( $change_subscription_id ) {
-                        $button_text = ( (float) $price > (float) $current_plan_price ) ? __( 'Upgrade', 'wordpress-membership-pro' ) : __( 'Downgrade', 'wordpress-membership-pro' );
-                        $checkout_url = add_query_arg( 'change_subscription_id', $change_subscription_id, $checkout_url );
-                    }
-
-                    $output .= '<a href="' . esc_url( $checkout_url ) . '" class="wmp-button">' . $button_text . '</a>';
-                }
-
+                $output .= '<a href="' . esc_url( $checkout_url ) . '" class="wmp-button">' . __( 'Sign Up', 'wordpress-membership-pro' ) . '</a>';
                 $output .= '</div>';
             }
             $output .= '</div>';
