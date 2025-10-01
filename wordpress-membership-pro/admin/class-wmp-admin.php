@@ -908,6 +908,21 @@ class WMP_Admin {
             )
         );
 
+        // Mailchimp List
+        add_settings_field(
+            'wmp_mailchimp_list_id',
+            __( 'Mailchimp List', 'wordpress-membership-pro' ),
+            array( $this, 'render_mailchimp_list_select' ),
+            'wmp-settings',
+            'wmp_settings_integrations',
+            array(
+                'label_for' => 'wmp_mailchimp_list_id',
+                'option_name' => 'wmp_settings',
+                'key' => 'mailchimp_list_id',
+                'description' => __( 'Select the list to which new members should be subscribed.', 'wordpress-membership-pro' ),
+            )
+        );
+
         // Affiliate Settings Section
         add_settings_section(
             'wmp_settings_affiliates',
@@ -1286,6 +1301,44 @@ class WMP_Admin {
 
             $restricted_plans = isset( $_POST['wmp_restricted_to_plans'] ) ? array_map( 'absint', $_POST['wmp_restricted_to_plans'] ) : array();
             update_post_meta( $post_id, '_wmp_restricted_to_plans', $restricted_plans );
+        }
+    }
+
+    /**
+     * Render the Mailchimp list select dropdown.
+     *
+     * @since    1.0.7
+     * @param    array    $args    The arguments for the field.
+     */
+    public function render_mailchimp_list_select( $args ) {
+        $options = get_option( $args['option_name'] );
+        $api_key = isset( $options['mailchimp_api_key'] ) ? $options['mailchimp_api_key'] : '';
+        $selected_list = isset( $options[ $args['key'] ] ) ? $options[ $args['key'] ] : '';
+
+        if ( empty( $api_key ) ) {
+            echo '<p>' . __( 'Please enter your Mailchimp API key above and save settings to see a list of available audiences.', 'wordpress-membership-pro' ) . '</p>';
+            return;
+        }
+
+        // The integration class needs to be loaded here to be used
+        require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-mailchimp-integration.php';
+        $mailchimp = new WMP_Mailchimp_Integration();
+        $lists = $mailchimp->get_lists();
+
+        if ( ! $lists || empty( $lists ) ) {
+            echo '<p>' . __( 'Could not retrieve lists from Mailchimp. Please check your API key.', 'wordpress-membership-pro' ) . '</p>';
+            return;
+        }
+
+        echo '<select id="' . esc_attr( $args['label_for'] ) . '" name="' . esc_attr( $args['option_name'] . '[' . $args['key'] . ']' ) . '">';
+        echo '<option value="">' . __( '— Select a List —', 'wordpress-membership-pro' ) . '</option>';
+        foreach ( $lists as $list ) {
+            echo '<option value="' . esc_attr( $list['id'] ) . '" ' . selected( $selected_list, $list['id'], false ) . '>' . esc_html( $list['name'] ) . '</option>';
+        }
+        echo '</select>';
+
+        if ( ! empty( $args['description'] ) ) {
+            echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
         }
     }
 }

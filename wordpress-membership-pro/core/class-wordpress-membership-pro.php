@@ -143,6 +143,8 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-affiliates-list-table.php';
         require_once WMP_PLUGIN_DIR . 'admin/class-wmp-payouts-list-table.php';
         require_once WMP_PLUGIN_DIR . 'api/class-wmp-api.php';
+        require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-integration.php';
+        require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-mailchimp-integration.php';
 
         $this->loader = new WMP_Loader();
     }
@@ -181,6 +183,60 @@ class WordPress_Membership_Pro {
 
         // Block registration
         $this->loader->add_action( 'init', $this, 'register_blocks' );
+
+        // Integration hooks
+        $this->loader->add_action( 'wmp_subscription_activated', $this, 'subscribe_to_mailchimp_on_activation', 10, 2 );
+        $this->loader->add_action( 'wmp_subscription_cancelled', $this, 'unsubscribe_from_mailchimp_on_cancellation', 10, 2 );
+    }
+
+    /**
+     * Subscribes a user to Mailchimp when their subscription is activated.
+     *
+     * @since    1.0.7
+     * @param    int    $subscription_id      The ID of the subscription.
+     * @param    int    $user_id              The ID of the user.
+     */
+    public function subscribe_to_mailchimp_on_activation( $subscription_id, $user_id ) {
+        $options = get_option( 'wmp_settings' );
+        $api_key = isset( $options['mailchimp_api_key'] ) ? $options['mailchimp_api_key'] : '';
+        $list_id = isset( $options['mailchimp_list_id'] ) ? $options['mailchimp_list_id'] : '';
+
+        if ( empty( $api_key ) || empty( $list_id ) ) {
+            return;
+        }
+
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            return;
+        }
+
+        $mailchimp = new WMP_Mailchimp_Integration();
+        $mailchimp->add_subscriber( $user->user_email, $list_id );
+    }
+
+    /**
+     * Unsubscribes a user from Mailchimp when their subscription is cancelled.
+     *
+     * @since    1.0.7
+     * @param    int    $subscription_id      The ID of the subscription.
+     * @param    int    $user_id              The ID of the user.
+     */
+    public function unsubscribe_from_mailchimp_on_cancellation( $subscription_id, $user_id ) {
+        $options = get_option( 'wmp_settings' );
+        $api_key = isset( $options['mailchimp_api_key'] ) ? $options['mailchimp_api_key'] : '';
+        $list_id = isset( $options['mailchimp_list_id'] ) ? $options['mailchimp_list_id'] : '';
+
+        if ( empty( $api_key ) || empty( $list_id ) ) {
+            return;
+        }
+
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            return;
+        }
+
+        $mailchimp = new WMP_Mailchimp_Integration();
+        $mailchimp->remove_subscriber( $user->user_email, $list_id );
     }
 
     /**

@@ -218,14 +218,25 @@ class WMP_Public {
 
         // For offline payments, we create or update the subscription directly.
         if ( 'offline' === $gateway_id ) {
-            $price = get_post_meta( $plan_id, '_wmp_price', true );
-            $subscription_id = null;
-
             if ( $change_subscription_id ) {
-                $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id );
-                $subscription_id = $change_subscription_id;
-                $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_pending', home_url( '/account' ) );
+                $proration_charge = $this->subscriptions_handler->change_subscription( $change_subscription_id, $plan_id );
+                if ( false !== $proration_charge ) {
+                    if ( $proration_charge > 0 ) {
+                        $this->transactions_handler->create_transaction( array(
+                            'subscription_id' => $change_subscription_id,
+                            'user_id'         => get_current_user_id(),
+                            'amount'          => $proration_charge,
+                            'gateway'         => 'offline',
+                            'transaction_id'  => 'proration_offline_' . $change_subscription_id,
+                            'status'          => 'on-hold',
+                        ) );
+                    }
+                    $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_pending', home_url( '/account' ) );
+                } else {
+                    wp_die( __( 'There was an error changing your plan.', 'wordpress-membership-pro' ) );
+                }
             } else {
+                $price = get_post_meta( $plan_id, '_wmp_price', true );
                 $subscription_data = array(
                     'user_id'                 => get_current_user_id(),
                     'plan_id'                 => $plan_id,
@@ -235,19 +246,17 @@ class WMP_Public {
                     'gateway_subscription_id' => '',
                 );
                 $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
+                if ( $subscription_id ) {
+                    $this->transactions_handler->create_transaction( array(
+                        'subscription_id' => $subscription_id,
+                        'user_id'         => get_current_user_id(),
+                        'amount'          => $price,
+                        'gateway'         => 'offline',
+                        'transaction_id'  => 'offline_' . $subscription_id,
+                        'status'          => 'on-hold',
+                    ) );
+                }
                 $redirect_url = add_query_arg( 'wmp_message', 'order_received', home_url( '/thank-you' ) );
-            }
-
-            // Log the transaction for offline payments
-            if ( $subscription_id ) {
-                $this->transactions_handler->create_transaction( array(
-                    'subscription_id' => $subscription_id,
-                    'user_id'         => get_current_user_id(),
-                    'amount'          => $price,
-                    'gateway'         => 'offline',
-                    'transaction_id'  => 'offline_' . $subscription_id,
-                    'status'          => 'on-hold',
-                ) );
             }
 
             wp_redirect( $redirect_url );
