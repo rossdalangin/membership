@@ -170,15 +170,28 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
     public static function get_affiliates( $per_page = 20, $page_number = 1, $status = 'all' ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
-        $offset = ( $page_number - 1 ) * $per_page;
 
-        if ( 'all' === $status ) {
-            $sql = "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT %d OFFSET %d";
-            return $wpdb->get_results( $wpdb->prepare( $sql, $per_page, $offset ), 'ARRAY_A' );
-        } else {
-            $sql = "SELECT * FROM {$table_name} WHERE status = %s ORDER BY created_at DESC LIMIT %d OFFSET %d";
-            return $wpdb->get_results( $wpdb->prepare( $sql, $status, $per_page, $offset ), 'ARRAY_A' );
+        // Sanitize numeric values. These are safe to use directly in the query.
+        $limit = absint( $per_page );
+        $offset = ( absint( $page_number ) - 1 ) * $limit;
+
+        $sql = "SELECT * FROM {$table_name}";
+        $params = array();
+
+        if ( 'all' !== $status ) {
+            $sql .= " WHERE status = %s";
+            $params[] = sanitize_key( $status );
         }
+
+        // LIMIT and OFFSET are not placeholders in $wpdb->prepare, they must be part of the SQL string.
+        $sql .= " ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}";
+
+        // Only call prepare if we have parameters to prepare.
+        if ( ! empty( $params ) ) {
+             return $wpdb->get_results( $wpdb->prepare( $sql, $params ), 'ARRAY_A' );
+        }
+
+        return $wpdb->get_results( $sql, 'ARRAY_A' );
     }
 
     /**
@@ -187,14 +200,14 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
     public static function get_affiliate_count( $status = 'all' ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
+        $sql = "SELECT COUNT(*) FROM {$table_name}";
 
-        if ( 'all' === $status ) {
-            $sql = "SELECT COUNT(*) FROM {$table_name}";
-            return $wpdb->get_var( $sql );
-        } else {
-            $sql = "SELECT COUNT(*) FROM {$table_name} WHERE status = %s";
-            return $wpdb->get_var( $wpdb->prepare( $sql, $status ) );
+        if ( 'all' !== $status ) {
+            $sql .= " WHERE status = %s";
+            return $wpdb->get_var( $wpdb->prepare( $sql, sanitize_key( $status ) ) );
         }
+
+        return $wpdb->get_var( $sql );
     }
 
     /**
