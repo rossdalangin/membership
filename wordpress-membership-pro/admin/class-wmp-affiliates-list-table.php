@@ -45,17 +45,18 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
      */
     public function prepare_items() {
         $this->_column_headers = $this->get_column_info();
+        $status = isset( $_REQUEST['status'] ) ? sanitize_key( $_REQUEST['status'] ) : 'all';
 
         $per_page     = $this->get_items_per_page( 'affiliates_per_page', 20 );
         $current_page = $this->get_pagenum();
-        $total_items  = self::get_affiliate_count();
+        $total_items  = self::get_affiliate_count( $status );
 
         $this->set_pagination_args( [
             'total_items' => $total_items,
             'per_page'    => $per_page
         ] );
 
-        $this->items = self::get_affiliates( $per_page, $current_page );
+        $this->items = self::get_affiliates( $per_page, $current_page, $status );
     }
 
     /**
@@ -82,6 +83,37 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
      * @param string $column_name The column name.
      * @return mixed
      */
+    protected function get_views() {
+        $status_counts = self::get_status_counts();
+        $current_status = isset( $_GET['status'] ) ? sanitize_key( $_GET['status'] ) : 'all';
+        $base_url = admin_url( 'admin.php?page=wmp-affiliates' );
+
+        $views = array();
+        $views['all'] = sprintf(
+            '<a href="%s" class="%s">%s <span class="count">(%d)</span></a>',
+            esc_url( remove_query_arg( 'status', $base_url ) ),
+            'all' === $current_status ? 'current' : '',
+            __( 'All', 'wordpress-membership-pro' ),
+            $status_counts['all']
+        );
+
+        foreach ( $status_counts as $status => $count ) {
+            if ( 'all' === $status || $count === 0 ) {
+                continue;
+            }
+            $url = add_query_arg( 'status', $status, $base_url );
+            $views[ $status ] = sprintf(
+                '<a href="%s" class="%s">%s <span class="count">(%d)</span></a>',
+                esc_url( $url ),
+                $status === $current_status ? 'current' : '',
+                esc_html( ucfirst( $status ) ),
+                $count
+            );
+        }
+
+        return $views;
+    }
+
     protected function column_default( $item, $column_name ) {
         return $item[ $column_name ];
     }
@@ -135,23 +167,65 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
     /**
      * Retrieve affiliates data from the database.
      */
-    public static function get_affiliates( $per_page = 20, $page_number = 1 ) {
+    public static function get_affiliates( $per_page = 20, $page_number = 1, $status = 'all' ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
         $sql = "SELECT * FROM {$table_name}";
+
+        if ( 'all' !== $status ) {
+            $sql .= $wpdb->prepare( " WHERE status = %s", $status );
+        }
+
         $sql .= ' ORDER BY created_at DESC';
         $sql .= " LIMIT $per_page";
         $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
+
         return $wpdb->get_results( $sql, 'ARRAY_A' );
     }
 
     /**
      * Returns the count of records in the database.
      */
-    public static function get_affiliate_count() {
+    public static function get_affiliate_count( $status = 'all' ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
         $sql = "SELECT COUNT(*) FROM {$table_name}";
+
+        if ( 'all' !== $status ) {
+            $sql .= $wpdb->prepare( " WHERE status = %s", $status );
+        }
+
         return $wpdb->get_var( $sql );
+    }
+
+    /**
+     * Get the counts of affiliates for each status.
+     *
+     * @since 1.0.11
+     * @return array
+     */
+    public static function get_status_counts() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'wmp_affiliates';
+
+        $counts = array(
+            'all'      => 0,
+            'pending'  => 0,
+            'active'   => 0,
+            'rejected' => 0,
+        );
+
+        $results = $wpdb->get_results( "SELECT status, COUNT(*) as count FROM {$table_name} GROUP BY status", ARRAY_A );
+
+        $total = 0;
+        foreach ( $results as $row ) {
+            if ( isset( $counts[ $row['status'] ] ) ) {
+                $counts[ $row['status'] ] = (int) $row['count'];
+            }
+            $total += (int) $row['count'];
+        }
+        $counts['all'] = $total;
+
+        return $counts;
     }
 }
