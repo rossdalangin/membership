@@ -170,20 +170,15 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
     public static function get_affiliates( $per_page = 20, $page_number = 1, $status = 'all' ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
+        $offset = ( $page_number - 1 ) * $per_page;
 
-        $sql = "SELECT * FROM {$table_name}";
-        $params = array();
-
-        if ( 'all' !== $status ) {
-            $sql .= " WHERE status = %s";
-            $params[] = $status;
+        if ( 'all' === $status ) {
+            $sql = "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT %d OFFSET %d";
+            return $wpdb->get_results( $wpdb->prepare( $sql, $per_page, $offset ), 'ARRAY_A' );
+        } else {
+            $sql = "SELECT * FROM {$table_name} WHERE status = %s ORDER BY created_at DESC LIMIT %d OFFSET %d";
+            return $wpdb->get_results( $wpdb->prepare( $sql, $status, $per_page, $offset ), 'ARRAY_A' );
         }
-
-        $sql .= " ORDER BY created_at DESC LIMIT %d OFFSET %d";
-        $params[] = $per_page;
-        $params[] = ( $page_number - 1 ) * $per_page;
-
-        return $wpdb->get_results( $wpdb->prepare( $sql, $params ), 'ARRAY_A' );
     }
 
     /**
@@ -192,14 +187,14 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
     public static function get_affiliate_count( $status = 'all' ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
-        $sql = "SELECT COUNT(*) FROM {$table_name}";
 
-        if ( 'all' !== $status ) {
-            $sql .= " WHERE status = %s";
+        if ( 'all' === $status ) {
+            $sql = "SELECT COUNT(*) FROM {$table_name}";
+            return $wpdb->get_var( $sql );
+        } else {
+            $sql = "SELECT COUNT(*) FROM {$table_name} WHERE status = %s";
             return $wpdb->get_var( $wpdb->prepare( $sql, $status ) );
         }
-
-        return $wpdb->get_var( $sql );
     }
 
     /**
