@@ -105,17 +105,19 @@ class WMP_Gateway_Stripe {
      * @param array $data The data from the checkout form.
      */
     public function process_payment( $data ) {
-        // In a real scenario, we would use the Stripe PHP library.
-        // For this simulation, we'll assume the payment is successful if a token is present.
-
         if ( ! isset( $_POST['stripe_token'] ) || empty( $_POST['stripe_token'] ) ) {
             wp_die( __( 'Stripe token not found. Please try again.', 'wordpress-membership-pro' ) );
+        }
+
+        if ( ! class_exists( '\Stripe\Stripe' ) ) {
+            wp_die( 'Stripe PHP library not found. Please install it via Composer.' );
         }
 
         $token = sanitize_text_field( $_POST['stripe_token'] );
         $plan_id = absint( $data['plan_id'] );
         $user_id = absint( $data['user_id'] );
         $price = get_post_meta( $plan_id, '_wmp_price', true );
+        $change_subscription_id = isset( $data['change_subscription_id'] ) ? absint( $data['change_subscription_id'] ) : 0;
 
         $final_price = $price;
         $coupon_code = isset( $_POST['wmp_applied_coupon'] ) ? sanitize_text_field( $_POST['wmp_applied_coupon'] ) : '';
@@ -128,105 +130,97 @@ class WMP_Gateway_Stripe {
             }
         }
 
-        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
-        // The following code simulates a Stripe payment but does NOT process a real transaction.
-        // For a production environment, you must have the Stripe PHP SDK installed and replace
-        // this simulation logic with a proper API call to \Stripe\Charge::create() or a similar method.
-        // An admin notice will appear if the Stripe SDK is not detected.
-        //
-        // Example of a real implementation:
-        // if ( ! class_exists( '\Stripe\Stripe' ) ) {
-        //     wp_die( 'Stripe PHP library not found.' );
-        // }
-        // try {
-        //     \Stripe\Stripe::setApiKey( $this->secret_key );
-        //     $charge = \Stripe\Charge::create([
-        //         'amount' => $final_price * 100, // Amount in cents
-        //         'currency' => 'usd',
-        //         'source' => $token,
-        //         'description' => 'Membership Plan: ' . get_the_title( $plan_id ),
-        //     ]);
-        //     $charge_id = $charge->id;
-        // } catch ( \Stripe\Exception\CardException $e ) {
-        //     wp_die( 'Card Error: ' . $e->get_error()->message );
-        // } catch ( \Exception $e ) {
-        //     wp_die( 'An unexpected error occurred. Please try again.' );
-        // }
-        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
-
-        // Simulate a successful charge for demonstration purposes.
-        $charge_id = 'sim_ch_' . uniqid();
-        $change_subscription_id = isset( $data['change_subscription_id'] ) ? absint( $data['change_subscription_id'] ) : 0;
+        $charge_id = null;
         $subscription_id = null;
+        $redirect_url = '';
 
-        if ( $change_subscription_id ) {
-            // This is a plan change. First, calculate the proration.
-            $proration_charge = $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id );
+        try {
+            \Stripe\Stripe::setApiKey( $this->secret_key );
 
-            // If the proration charge is positive, it's an upgrade that requires payment.
-            if ( $proration_charge > 0 ) {
-                // Here you would create a real Stripe charge for the proration amount.
-                // For this simulation, we'll just log it as a completed transaction.
+            if ( $change_subscription_id ) {
+                // This is a plan change. First, calculate the proration.
+                $proration_charge = $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id );
+
+                if ( $proration_charge > 0 ) {
+                    $charge = \Stripe\Charge::create([
+                        'amount' => $proration_charge * 100, // Amount in cents
+                        'currency' => 'usd',
+                        'source' => $token,
+                        'description' => 'Proration charge for plan change to ' . get_the_title( $plan_id ),
+                    ]);
+                    $charge_id = $charge->id;
+
+                    $this->transactions_handler->create_transaction( array(
+                        'subscription_id' => $change_subscription_id,
+                        'user_id'         => $user_id,
+                        'amount'          => $proration_charge,
+                        'gateway'         => $this->id,
+                        'transaction_id'  => $charge_id,
+                        'status'          => 'completed',
+                    ) );
+                }
+
+                $subscription_id = $change_subscription_id;
+                $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_success', home_url( '/account' ) );
+
+            } else {
+                // This is a new subscription charge.
+                $charge = \Stripe\Charge::create([
+                    'amount' => $final_price * 100, // Amount in cents
+                    'currency' => 'usd',
+                    'source' => $token,
+                    'description' => 'Membership Plan: ' . get_the_title( $plan_id ),
+                ]);
+                $charge_id = $charge->id;
+
+                $subscription_data = array(
+                    'user_id'                 => $user_id,
+                    'plan_id'                 => $plan_id,
+                    'status'                  => 'active',
+                    'start_date'              => current_time( 'mysql' ),
+                    'gateway'                 => $this->id,
+                    'gateway_subscription_id' => $charge_id, // For one-time payments, this is the charge ID.
+                );
+                $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
+
                 $this->transactions_handler->create_transaction( array(
-                    'subscription_id' => $change_subscription_id,
+                    'subscription_id' => $subscription_id,
                     'user_id'         => $user_id,
-                    'amount'          => $proration_charge,
+                    'amount'          => $final_price,
                     'gateway'         => $this->id,
-                    'transaction_id'  => 'sim_proration_' . uniqid(),
+                    'transaction_id'  => $charge_id,
                     'status'          => 'completed',
                 ) );
+
+                if ( $coupon ) {
+                    WMP_Coupons::increment_usage_count( $coupon->ID );
+                }
+
+                $redirect_url = add_query_arg( 'wmp_message', 'purchase_success', home_url( '/thank-you' ) );
             }
 
-            // For downgrades (negative proration_charge), a credit system would be implemented here.
-
-            $subscription_id = $change_subscription_id;
-            $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_success', home_url( '/account' ) );
-        } else {
-            // This is a new subscription.
-            $subscription_data = array(
-                'user_id'                 => $user_id,
-                'plan_id'                 => $plan_id,
-                'status'                  => 'active',
-                'start_date'              => current_time( 'mysql' ),
-                'gateway'                 => $this->id,
-                'gateway_subscription_id' => $charge_id,
-            );
-            $subscription_id = $this->subscriptions_handler->create_subscription( $subscription_data );
-            $redirect_url = add_query_arg( 'wmp_message', 'purchase_success', home_url( '/thank-you' ) );
+        } catch ( \Stripe\Exception\CardException $e ) {
+            wp_die( 'Card Error: ' . $e->get_error()->message );
+        } catch ( \Exception $e ) {
+            wp_die( 'An unexpected error occurred. Please try again.' );
         }
 
-        // Log the transaction
-        if ( $subscription_id ) {
-            $this->transactions_handler->create_transaction( array(
-                'subscription_id' => $subscription_id,
-                'user_id'         => $user_id,
-                'amount'          => $final_price,
-                'gateway'         => $this->id,
-                'transaction_id'  => $charge_id,
-                'status'          => 'completed',
+        // Check for an upsell offer if it's a new subscription
+        if ( ! $change_subscription_id ) {
+            $upsell_query = new WP_Query( array(
+                'post_type'  => 'wmp_membership_plan',
+                'meta_key'   => '_wmp_oto_upsell_for',
+                'meta_value' => $plan_id,
+                'posts_per_page' => 1,
             ) );
-        }
-
-        // Increment coupon usage if one was applied (only for new subscriptions for now)
-        if ( $coupon && ! $change_subscription_id ) {
-            WMP_Coupons::increment_usage_count( $coupon->ID );
-        }
-
-        // Check for an upsell offer
-        $upsell_query = new WP_Query( array(
-            'post_type'  => 'wmp_membership_plan',
-            'meta_key'   => '_wmp_oto_upsell_for',
-            'meta_value' => $plan_id,
-            'posts_per_page' => 1,
-        ) );
-
-        if ( $upsell_query->have_posts() ) {
-            $upsell_plan = $upsell_query->posts[0];
-            $redirect_url = add_query_arg( array(
-                'wmp_action' => 'oto_upsell',
-                'plan_id' => $upsell_plan->ID,
-                'subscription_id' => $subscription_id,
-            ), home_url( '/one-time-offer' ) );
+            if ( $upsell_query->have_posts() ) {
+                $upsell_plan = $upsell_query->posts[0];
+                $redirect_url = add_query_arg( array(
+                    'wmp_action' => 'oto_upsell',
+                    'plan_id' => $upsell_plan->ID,
+                    'subscription_id' => $subscription_id,
+                ), home_url( '/one-time-offer' ) );
+            }
         }
 
         wp_redirect( $redirect_url );
@@ -279,29 +273,20 @@ class WMP_Gateway_Stripe {
      * @return bool True on success, false on failure.
      */
     public function process_refund( $charge_id ) {
-        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
-        // For a production environment, you must have the Stripe PHP SDK installed and
-        // replace this simulation logic with a proper API call to \Stripe\Refund::create().
-        //
-        // Example of a real implementation:
-        // if ( ! class_exists( '\Stripe\Stripe' ) ) {
-        //     return false;
-        // }
-        // try {
-        //     \Stripe\Stripe::setApiKey( $this->secret_key );
-        //     $refund = \Stripe\Refund::create([
-        //         'charge' => $charge_id,
-        //     ]);
-        //     return 'succeeded' === $refund->status;
-        // } catch ( \Exception $e ) {
-        //     // Log the error message: $e->getMessage()
-        //     return false;
-        // }
-        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+        if ( ! class_exists( '\Stripe\Stripe' ) ) {
+            return false;
+        }
 
-        // Simulate a successful refund for demonstration purposes.
-        // In a real scenario, this would return true only if the API call was successful.
-        return true;
+        try {
+            \Stripe\Stripe::setApiKey( $this->secret_key );
+            $refund = \Stripe\Refund::create([
+                'charge' => $charge_id,
+            ]);
+            return 'succeeded' === $refund->status;
+        } catch ( \Exception $e ) {
+            // In a real plugin, you would log this error.
+            return false;
+        }
     }
 
     /**
@@ -318,24 +303,21 @@ class WMP_Gateway_Stripe {
             return $customer_id;
         }
 
-        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
-        // In a production environment, you would call the Stripe API to create a customer.
-        // Example:
-        // try {
-        //     \Stripe\Stripe::setApiKey( $this->secret_key );
-        //     $customer = \Stripe\Customer::create([
-        //         'email' => $user->user_email,
-        //         'name'  => $user->display_name,
-        //     ]);
-        //     $customer_id = $customer->id;
-        // } catch ( \Exception $e ) {
-        //     // Log error
-        //     return false;
-        // }
-        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+        if ( ! class_exists( '\Stripe\Stripe' ) ) {
+            return false;
+        }
 
-        // Simulate creating a customer
-        $customer_id = 'cus_' . uniqid();
+        try {
+            \Stripe\Stripe::setApiKey( $this->secret_key );
+            $customer = \Stripe\Customer::create([
+                'email' => $user->user_email,
+                'name'  => $user->display_name,
+            ]);
+            $customer_id = $customer->id;
+        } catch ( \Exception $e ) {
+            // In a real plugin, you would log this error.
+            return false;
+        }
 
         update_user_meta( $user->ID, '_wmp_stripe_customer_id', $customer_id );
 
@@ -350,29 +332,37 @@ class WMP_Gateway_Stripe {
      * @return bool True on success, false on failure.
      */
     public function attempt_payment_retry( $subscription ) {
-        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
-        // In a production environment, you would use the Stripe API to create a new invoice
-        // or charge the customer directly. This is a placeholder for that logic.
-        // Example:
-        // $customer_id = get_user_meta( $subscription->user_id, '_wmp_stripe_customer_id', true );
-        // $price = get_post_meta( $subscription->plan_id, '_wmp_price', true );
-        // try {
-        //     \Stripe\Stripe::setApiKey( $this->secret_key );
-        //     \Stripe\Charge::create([
-        //         'amount'   => $price * 100, // Amount in cents
-        //         'currency' => 'usd',
-        //         'customer' => $customer_id,
-        //         'description' => 'Retry for subscription #' . $subscription->id,
-        //     ]);
-        //     // The 'invoice.payment_succeeded' webhook will handle reactivating the subscription.
-        // } catch ( \Exception $e ) {
-        //     // The 'invoice.payment_failed' webhook will handle the next retry or cancellation.
-        //     return false;
-        // }
-        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+        if ( ! class_exists( '\Stripe\Stripe' ) ) {
+            return false;
+        }
 
-        // For simulation purposes, we'll assume the retry is successful.
-        // The webhook handler will then update the subscription status.
+        $customer_id = get_user_meta( $subscription->user_id, '_wmp_stripe_customer_id', true );
+        if ( ! $customer_id ) {
+            return false;
+        }
+
+        $price = get_post_meta( $subscription->plan_id, '_wmp_price', true );
+        if ( ! $price || $price <= 0 ) {
+            return false;
+        }
+
+        try {
+            \Stripe\Stripe::setApiKey( $this->secret_key );
+            \Stripe\Charge::create([
+                'amount'   => $price * 100, // Amount in cents
+                'currency' => 'usd',
+                'customer' => $customer_id,
+                'description' => 'Automatic payment retry for subscription #' . $subscription->id,
+            ]);
+            // If the charge succeeds, the `invoice.payment_succeeded` webhook will be triggered by Stripe,
+            // which will then reactivate the subscription.
+        } catch ( \Exception $e ) {
+            // If the charge fails, the `invoice.payment_failed` webhook will be triggered,
+            // which will schedule the next retry or cancel the subscription.
+            // In a real plugin, you would log this error: $e->getMessage()
+            return false;
+        }
+
         return true;
     }
 
@@ -385,29 +375,31 @@ class WMP_Gateway_Stripe {
      * @return bool True on success, false on failure.
      */
     public function update_subscription_payment_method( $subscription_id, $payment_method_id ) {
-        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
-        // In a production environment, you would use the Stripe API to:
-        // 1. Attach the new payment method to the customer.
-        // 2. Update the subscription to use the new payment method as the default.
-        // Example:
-        // try {
-        //     \Stripe\Stripe::setApiKey( $this->secret_key );
-        //     // First, attach the payment method to the customer
-        //     \Stripe\PaymentMethod::attach( $payment_method_id, [
-        //         'customer' => $customer_id, // You'd need to fetch or have the customer ID
-        //     ]);
-        //     // Then, update the subscription to use the new payment method
-        //     \Stripe\Subscription::update( $subscription_id, [
-        //         'default_payment_method' => $payment_method_id,
-        //     ]);
-        //     return true;
-        // } catch ( \Exception $e ) {
-        //     // Log error
-        //     return false;
-        // }
-        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+        if ( ! class_exists( '\Stripe\Stripe' ) ) {
+            return false;
+        }
 
-        // Simulate a successful update.
-        return true;
+        try {
+            \Stripe\Stripe::setApiKey( $this->secret_key );
+
+            // Retrieve the subscription to get the customer ID
+            $subscription = \Stripe\Subscription::retrieve($subscription_id);
+            $customer_id = $subscription->customer;
+
+            // Attach the new payment method to the customer
+            \Stripe\PaymentMethod::attach( $payment_method_id, [
+                'customer' => $customer_id,
+            ]);
+
+            // Update the subscription to use the new payment method as the default
+            \Stripe\Subscription::update( $subscription_id, [
+                'default_payment_method' => $payment_method_id,
+            ]);
+
+            return true;
+        } catch ( \Exception $e ) {
+            // In a real plugin, you would log this error.
+            return false;
+        }
     }
 }
