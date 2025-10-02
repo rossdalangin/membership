@@ -19,13 +19,19 @@
  */
 class WMP_Gamification {
 
+    private $referrals_handler;
+    private $affiliates_handler;
+    private $subscriptions_handler;
+
     /**
      * Initialize the class and set its properties.
      *
      * @since    1.0.8
      */
-    public function __construct() {
-        // Constructor logic can be added here if needed.
+    public function __construct( $referrals_handler, $affiliates_handler, $subscriptions_handler ) {
+        $this->referrals_handler = $referrals_handler;
+        $this->affiliates_handler = $affiliates_handler;
+        $this->subscriptions_handler = $subscriptions_handler;
     }
 
     /**
@@ -81,8 +87,7 @@ class WMP_Gamification {
 
         $affiliate_id = $referral_data['affiliate_id'];
 
-        $referrals_handler = new WMP_Referrals();
-        $referral_count = $referrals_handler->get_referral_count( $affiliate_id );
+        $referral_count = $this->referrals_handler->get_referral_count( $affiliate_id );
 
         // We only award the badge on the very first successful referral.
         if ( 1 !== $referral_count ) {
@@ -144,8 +149,7 @@ class WMP_Gamification {
         $today = new DateTime();
 
         foreach ( $users as $user ) {
-            $subscriptions_handler = new WMP_Subscriptions();
-            $subscriptions = $subscriptions_handler->get_user_subscriptions( $user->ID );
+            $subscriptions = $this->subscriptions_handler->get_user_subscriptions( $user->ID );
 
             if ( empty( $subscriptions ) ) {
                 continue;
@@ -162,9 +166,11 @@ class WMP_Gamification {
 
                 foreach ( $anniversary_badges as $badge_id => $required_years ) {
                     if ( $years_active >= $required_years ) {
-                        // Check if the anniversary is today to award the badge only once a year.
-                        if ( $start_date->format('m-d') === $today->format('m-d') ) {
-                             $this->award_badge( $user->ID, $badge_id );
+                        $meta_key = '_wmp_anniversary_badge_awarded_' . $required_years;
+                        $already_awarded = get_user_meta( $user->ID, $meta_key, true );
+                        if ( ! $already_awarded ) {
+                            $this->award_badge( $user->ID, $badge_id );
+                            update_user_meta( $user->ID, $meta_key, true );
                         }
                     }
                 }

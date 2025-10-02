@@ -160,12 +160,25 @@ class WMP_Gateway_Stripe {
         $subscription_id = null;
 
         if ( $change_subscription_id ) {
-            // This is a plan change.
-            // --- Proration Placeholder ---
-            // In a real implementation, you would calculate the proration cost here
-            // and charge the user accordingly before changing the plan.
-            // ---
-            $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id, [ 'gateway_subscription_id' => $charge_id ] );
+            // This is a plan change. First, calculate the proration.
+            $proration_charge = $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id );
+
+            // If the proration charge is positive, it's an upgrade that requires payment.
+            if ( $proration_charge > 0 ) {
+                // Here you would create a real Stripe charge for the proration amount.
+                // For this simulation, we'll just log it as a completed transaction.
+                $this->transactions_handler->create_transaction( array(
+                    'subscription_id' => $change_subscription_id,
+                    'user_id'         => $user_id,
+                    'amount'          => $proration_charge,
+                    'gateway'         => $this->id,
+                    'transaction_id'  => 'sim_proration_' . uniqid(),
+                    'status'          => 'completed',
+                ) );
+            }
+
+            // For downgrades (negative proration_charge), a credit system would be implemented here.
+
             $subscription_id = $change_subscription_id;
             $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_success', home_url( '/account' ) );
         } else {
@@ -360,6 +373,41 @@ class WMP_Gateway_Stripe {
 
         // For simulation purposes, we'll assume the retry is successful.
         // The webhook handler will then update the subscription status.
+        return true;
+    }
+
+    /**
+     * Update the payment method for a Stripe subscription.
+     *
+     * @since 1.0.10
+     * @param string $subscription_id The Stripe Subscription ID.
+     * @param string $payment_method_id The new Stripe Payment Method ID.
+     * @return bool True on success, false on failure.
+     */
+    public function update_subscription_payment_method( $subscription_id, $payment_method_id ) {
+        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
+        // In a production environment, you would use the Stripe API to:
+        // 1. Attach the new payment method to the customer.
+        // 2. Update the subscription to use the new payment method as the default.
+        // Example:
+        // try {
+        //     \Stripe\Stripe::setApiKey( $this->secret_key );
+        //     // First, attach the payment method to the customer
+        //     \Stripe\PaymentMethod::attach( $payment_method_id, [
+        //         'customer' => $customer_id, // You'd need to fetch or have the customer ID
+        //     ]);
+        //     // Then, update the subscription to use the new payment method
+        //     \Stripe\Subscription::update( $subscription_id, [
+        //         'default_payment_method' => $payment_method_id,
+        //     ]);
+        //     return true;
+        // } catch ( \Exception $e ) {
+        //     // Log error
+        //     return false;
+        // }
+        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+
+        // Simulate a successful update.
         return true;
     }
 }

@@ -237,9 +237,6 @@ class WMP_Shortcodes {
         $output .= '</form>';
         $output .= '</div>';
 
-        // Display Earned Badges
-        $output .= $this->_render_user_badges( $current_user->ID );
-
         return $output;
     }
 
@@ -394,9 +391,12 @@ class WMP_Shortcodes {
         }
 
         if ( $has_updatable_subscription ) {
+            $output .= '<div id="wmp-billing-portal-wrapper">';
             $output .= '<p>' . __( 'Your payment method on file can be updated below.', 'wordpress-membership-pro' ) . '</p>';
             // In the next steps, this will be replaced with a Stripe Elements form.
             $output .= '<a href="#" id="wmp-update-payment-method-button" class="wmp-button">' . __( 'Update Payment Method', 'wordpress-membership-pro' ) . '</a>';
+            $output .= wp_nonce_field( 'wmp_update_payment_method_nonce', 'wmp_update_payment_method_nonce', true, false );
+            $output .= '</div>';
         } else {
             $output .= '<p>' . __( 'You do not have an active subscription with a payment method that can be updated online.', 'wordpress-membership-pro' ) . '</p>';
         }
@@ -441,24 +441,7 @@ class WMP_Shortcodes {
         $output .= '</div>';
 
         // Display Earned Badges
-        $output .= '<h3>' . __( 'My Badges', 'wordpress-membership-pro' ) . '</h3>';
-        $earned_badges = get_user_meta( $current_user->ID, '_wmp_earned_badge', false );
-
-        if ( ! empty( $earned_badges ) ) {
-            $output .= '<div class="wmp-badges-grid">';
-            foreach ( array_unique($earned_badges) as $badge_id ) {
-                $badge_post = get_post( $badge_id );
-                if ( $badge_post ) {
-                    $output .= '<div class="wmp-badge">';
-                    $output .= get_the_post_thumbnail( $badge_id, 'thumbnail' );
-                    $output .= '<h4>' . esc_html( $badge_post->post_title ) . '</h4>';
-                    $output .= '</div>';
-                }
-            }
-            $output .= '</div>';
-        } else {
-            $output .= '<p>' . __( 'You have not earned any badges yet.', 'wordpress-membership-pro' ) . '</p>';
-        }
+        $output .= $this->_render_user_badges( $current_user->ID );
 
         return $output;
     }

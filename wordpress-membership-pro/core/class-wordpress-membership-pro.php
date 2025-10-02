@@ -98,6 +98,15 @@ class WordPress_Membership_Pro {
     protected $gamification_handler;
 
     /**
+     * The access handler instance.
+     *
+     * @since    1.0.10
+     * @access   protected
+     * @var      WMP_Access_Handler    $access_handler    Handles access control logic.
+     */
+    protected $access_handler;
+
+    /**
      * Define the core functionality of the plugin.
      *
      * Set the plugin name and the plugin version that can be used throughout the plugin.
@@ -113,10 +122,11 @@ class WordPress_Membership_Pro {
         $this->load_dependencies();
         $this->subscriptions_handler = new WMP_Subscriptions();
         $this->transactions_handler  = new WMP_Transactions();
+        $this->access_handler        = new WMP_Access_Handler( $this->subscriptions_handler );
         $this->gateways_manager      = new WMP_Gateways( $this->subscriptions_handler, $this->transactions_handler );
         $this->affiliates_handler    = new WMP_Affiliates();
         $this->referrals_handler     = new WMP_Referrals();
-        $this->gamification_handler  = new WMP_Gamification();
+        $this->gamification_handler  = new WMP_Gamification( $this->referrals_handler, $this->affiliates_handler, $this->subscriptions_handler );
         $this->set_locale();
         $this->define_core_hooks();
         $this->define_admin_hooks();
@@ -156,6 +166,7 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-integration.php';
         require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-mailchimp-integration.php';
         require_once WMP_PLUGIN_DIR . 'core/class-wmp-gamification.php';
+        require_once WMP_PLUGIN_DIR . 'includes/class-wmp-access-handler.php';
 
         $this->loader = new WMP_Loader();
     }
@@ -206,6 +217,38 @@ class WordPress_Membership_Pro {
         // Cron hooks
         $this->loader->add_action( 'wmp_daily_cron', $this, 'run_daily_cron_jobs' );
         $this->loader->add_action( 'wmp_process_payment_retry', $this, 'process_payment_retry', 10, 1 );
+
+        // Bonus content hooks
+        $this->loader->add_action( 'wmp_subscription_activated', $this, 'grant_bonus_on_activation', 10, 2 );
+    }
+
+    /**
+     * Grant access to a bonus file when a subscription is activated.
+     *
+     * @since 1.0.10
+     * @param int $subscription_id The ID of the subscription.
+     * @param int $user_id         The ID of the user.
+     */
+    public function grant_bonus_on_activation( $subscription_id, $user_id ) {
+        $subscription = $this->subscriptions_handler->get_subscription( $subscription_id );
+        if ( ! $subscription ) {
+            return;
+        }
+
+        $bonus_file_id = get_post_meta( $subscription->plan_id, '_wmp_bonus_file_id', true );
+        if ( empty( $bonus_file_id ) ) {
+            return;
+        }
+
+        $bonus_files = get_user_meta( $user_id, '_wmp_bonus_files', true );
+        if ( ! is_array( $bonus_files ) ) {
+            $bonus_files = array();
+        }
+
+        if ( ! in_array( $bonus_file_id, $bonus_files ) ) {
+            $bonus_files[] = $bonus_file_id;
+            update_user_meta( $user_id, '_wmp_bonus_files', $bonus_files );
+        }
     }
 
     /**
@@ -332,7 +375,17 @@ class WordPress_Membership_Pro {
      * @access   private
      */
     private function define_public_hooks() {
-        $plugin_public = new WMP_Public( $this->get_plugin_name(), $this->get_version(), $this->subscriptions_handler, $this->gateways_manager, $this->affiliates_handler, $this->referrals_handler, $this->transactions_handler, $this->gamification_handler );
+        $plugin_public = new WMP_Public(
+            $this->get_plugin_name(),
+            $this->get_version(),
+            $this->subscriptions_handler,
+            $this->gateways_manager,
+            $this->affiliates_handler,
+            $this->referrals_handler,
+            $this->transactions_handler,
+            $this->gamification_handler,
+            $this->access_handler
+        );
 
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );
@@ -348,6 +401,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'wp_ajax_wmp_apply_coupon', $plugin_public, 'apply_coupon_ajax_handler' );
         $this->loader->add_action( 'wp_ajax_nopriv_wmp_apply_coupon', $plugin_public, 'apply_coupon_ajax_handler' );
         $this->loader->add_action( 'wp_ajax_wmp_create_setup_intent', $plugin_public, 'create_setup_intent_ajax_handler' );
+        $this->loader->add_action( 'wp_ajax_wmp_update_payment_method', $plugin_public, 'update_payment_method_ajax_handler' );
         $this->loader->add_action( 'init', $plugin_public, 'register_shortcodes' );
         $this->loader->add_action( 'init', $plugin_public, 'process_checkout' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_invoice_download' );
@@ -359,6 +413,9 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'init', $plugin_public, 'process_payout_request' );
         $this->loader->add_action( 'init', $plugin_public, 'process_lead_capture' );
         $this->loader->add_filter( 'the_content', $plugin_public, 'filter_the_content' );
+
+        // bbPress Integration
+        $this->loader->add_filter( 'bbp_user_can_view_forum', $plugin_public, 'filter_bbpress_forum_access', 10, 3 );
     }
 
     /**

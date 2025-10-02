@@ -56,6 +56,26 @@ class WMP_Admin {
             'high'
         );
 
+        // Forum Access Meta Box
+        add_meta_box(
+            'wmp_forum_access',
+            __( 'Forum Access', 'wordpress-membership-pro' ),
+            array( $this, 'render_forum_access_meta_box' ),
+            'wmp_membership_plan',
+            'normal',
+            'default'
+        );
+
+        // Bonus Content Meta Box
+        add_meta_box(
+            'wmp_bonus_content',
+            __( 'Bonus Content', 'wordpress-membership-pro' ),
+            array( $this, 'render_bonus_content_meta_box' ),
+            'wmp_membership_plan',
+            'normal',
+            'default'
+        );
+
         // Content Protection Meta Box
         $post_types = get_post_types_by_support( 'editor' );
         foreach ( $post_types as $post_type ) {
@@ -1342,6 +1362,18 @@ class WMP_Admin {
                 update_post_meta( $post_id, '_wmp_badge_trigger_value', sanitize_text_field( $_POST['wmp_badge_trigger_value'] ) );
             }
         }
+
+        // Save Forum Access meta box
+        if ( isset( $_POST['wmp_forum_access_nonce'] ) && wp_verify_nonce( $_POST['wmp_forum_access_nonce'], 'wmp_save_forum_access' ) ) {
+            $restricted_forums = isset( $_POST['wmp_restricted_forums'] ) ? array_map( 'absint', $_POST['wmp_restricted_forums'] ) : array();
+            update_post_meta( $post_id, '_wmp_restricted_forums', $restricted_forums );
+        }
+
+        // Save Bonus Content meta box
+        if ( isset( $_POST['wmp_bonus_content_nonce'] ) && wp_verify_nonce( $_POST['wmp_bonus_content_nonce'], 'wmp_save_bonus_content' ) ) {
+            $bonus_file_id = isset( $_POST['wmp_bonus_file_id'] ) ? absint( $_POST['wmp_bonus_file_id'] ) : 0;
+            update_post_meta( $post_id, '_wmp_bonus_file_id', $bonus_file_id );
+        }
     }
 
     /**
@@ -1435,6 +1467,78 @@ class WMP_Admin {
         echo '<label for="wmp_badge_trigger_value"><strong>' . __( 'Trigger Value', 'wordpress-membership-pro' ) . '</strong></label><br/>';
         echo '<input type="text" id="wmp_badge_trigger_value" name="wmp_badge_trigger_value" value="' . esc_attr( $trigger_value ) . '" />';
         echo '<p class="description">' . __( 'For anniversaries, enter the number of years (e.g., 1). For other triggers, this can be left blank.', 'wordpress-membership-pro' ) . '</p>';
+        echo '</p>';
+    }
+
+    /**
+     * Render the meta box for forum access settings.
+     *
+     * @since    1.0.10
+     * @param    WP_Post    $post    The post object.
+     */
+    public function render_forum_access_meta_box( $post ) {
+        wp_nonce_field( 'wmp_save_forum_access', 'wmp_forum_access_nonce' );
+
+        if ( ! class_exists( 'bbPress' ) ) {
+            echo '<p>' . __( 'The bbPress plugin is not active. Please activate bbPress to use this feature.', 'wordpress-membership-pro' ) . '</p>';
+            return;
+        }
+
+        $restricted_forums = get_post_meta( $post->ID, '_wmp_restricted_forums', true );
+        $restricted_forums = is_array( $restricted_forums ) ? $restricted_forums : array();
+
+        $forums_query = new WP_Query( array(
+            'post_type'      => 'forum',
+            'posts_per_page' => -1,
+            'post_status'    => 'publish',
+        ) );
+
+        if ( $forums_query->have_posts() ) {
+            echo '<div style="max-height: 200px; overflow-y: scroll; border: 1px solid #ddd; padding: 10px;">';
+            while ( $forums_query->have_posts() ) {
+                $forums_query->the_post();
+                $forum_id = get_the_ID();
+                echo '<label><input type="checkbox" name="wmp_restricted_forums[]" value="' . esc_attr( $forum_id ) . '" ' . checked( in_array( $forum_id, $restricted_forums ), true, false ) . '> ' . esc_html( get_the_title() ) . '</label><br/>';
+            }
+            echo '</div>';
+            wp_reset_postdata();
+        } else {
+            echo '<p>' . __( 'No forums found. Please create a forum in bbPress first.', 'wordpress-membership-pro' ) . '</p>';
+        }
+    }
+
+    /**
+     * Render the meta box for bonus content settings.
+     *
+     * @since    1.0.10
+     * @param    WP_Post    $post    The post object.
+     */
+    public function render_bonus_content_meta_box( $post ) {
+        wp_nonce_field( 'wmp_save_bonus_content', 'wmp_bonus_content_nonce' );
+
+        $bonus_file_id = get_post_meta( $post->ID, '_wmp_bonus_file_id', true );
+
+        $secure_files_query = new WP_Query( array(
+            'post_type'      => 'wmp_secure_file',
+            'posts_per_page' => -1,
+            'post_status'    => 'publish',
+        ) );
+
+        echo '<p>';
+        echo '<label for="wmp_bonus_file_id"><strong>' . __( 'Select Bonus File', 'wordpress-membership-pro' ) . '</strong></label><br/>';
+        echo '<select id="wmp_bonus_file_id" name="wmp_bonus_file_id" style="width: 100%;">';
+        echo '<option value="">' . __( '— No Bonus —', 'wordpress-membership-pro' ) . '</option>';
+
+        if ( $secure_files_query->have_posts() ) {
+            while ( $secure_files_query->have_posts() ) {
+                $secure_files_query->the_post();
+                echo '<option value="' . esc_attr( get_the_ID() ) . '" ' . selected( $bonus_file_id, get_the_ID(), false ) . '>' . esc_html( get_the_title() ) . '</option>';
+            }
+            wp_reset_postdata();
+        }
+
+        echo '</select>';
+        echo '<p class="description">' . __( 'This secure file will be granted to the user upon activation of this plan.', 'wordpress-membership-pro' ) . '</p>';
         echo '</p>';
     }
 }

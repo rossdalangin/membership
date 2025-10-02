@@ -156,7 +156,7 @@
                 submitButton.text( 'Saving...' ).prop( 'disabled', true );
                 errorDiv.text( '' );
 
-                const { error } = await stripe.confirmSetup( {
+                const { setupIntent, error } = await stripe.confirmSetup( {
                     elements,
                     confirmParams: {
                         return_url: window.location.href, // Required, but we handle the result client-side
@@ -172,8 +172,28 @@
                     }
                     submitButton.text( 'Save New Card' ).prop( 'disabled', false );
                 } else {
-                    // Success. The payment method was updated.
-                    $( '#wmp-update-payment-container' ).html( '<div class="wmp-message success">Your payment method has been updated successfully!</div>' );
+                    // The SetupIntent was successful. Now, send the payment_method_id to the server.
+                    $.ajax({
+                        url: wmp_ajax.ajax_url,
+                        type: 'POST',
+                        data: {
+                            action: 'wmp_update_payment_method',
+                            nonce: $( '#wmp_update_payment_method_nonce' ).val(),
+                            payment_method_id: setupIntent.payment_method,
+                        },
+                        success: function( response ) {
+                            if ( response.success ) {
+                                $( '#wmp-update-payment-container' ).html( '<div class="wmp-message success">' + response.data.message + '</div>' );
+                            } else {
+                                errorDiv.text( response.data.message );
+                                submitButton.text( 'Save New Card' ).prop( 'disabled', false );
+                            }
+                        },
+                        error: function() {
+                            errorDiv.text( 'An error occurred while saving the payment method.' );
+                            submitButton.text( 'Save New Card' ).prop( 'disabled', false );
+                        }
+                    });
                 }
             } );
         }

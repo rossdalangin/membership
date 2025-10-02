@@ -69,6 +69,64 @@ class WMP_API {
                 'permission_callback' => '__return_true',
             ),
         ) );
+
+        // Subscriptions routes
+        register_rest_route( $this->namespace, '/subscriptions', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_subscriptions' ),
+                'permission_callback' => array( $this, 'get_items_permissions_check' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/subscriptions/(?P<id>\\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_subscription' ),
+                'permission_callback' => array( $this, 'get_items_permissions_check' ),
+            ),
+        ) );
+    }
+
+    /**
+     * Check if a given request has access to get items.
+     *
+     * @param  WP_REST_Request $request Full data about the request.
+     * @return bool
+     */
+    public function get_items_permissions_check( $request ) {
+        return current_user_can( 'manage_options' );
+    }
+
+    /**
+     * Get a collection of subscriptions.
+     *
+     * @param WP_REST_Request $request Full data about the request.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_subscriptions( $request ) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'wmp_subscriptions';
+        $results = $wpdb->get_results( "SELECT * FROM {$table_name}", ARRAY_A );
+
+        return new WP_REST_Response( $results, 200 );
+    }
+
+    /**
+     * Get one subscription from the collection.
+     *
+     * @param WP_REST_Request $request Full data about the request.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_subscription( $request ) {
+        $id = (int) $request['id'];
+        $subscription = $this->subscriptions_handler->get_subscription( $id );
+
+        if ( empty( $subscription ) ) {
+            return new WP_Error( 'wmp_not_found', __( 'Subscription not found', 'wordpress-membership-pro' ), array( 'status' => 404 ) );
+        }
+
+        return new WP_REST_Response( $subscription, 200 );
     }
 
     /**
