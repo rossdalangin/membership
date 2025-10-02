@@ -257,4 +257,37 @@ class WMP_Gateway_Stripe {
      * @param WP_Post $coupon The coupon post object.
      * @return float The discounted price.
      */
+
+    /**
+     * Process a refund for a transaction.
+     *
+     * @since 1.0.8
+     * @param string $charge_id The Stripe charge ID to refund.
+     * @return bool True on success, false on failure.
+     */
+    public function process_refund( $charge_id ) {
+        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
+        // For a production environment, you must have the Stripe PHP SDK installed and
+        // replace this simulation logic with a proper API call to \Stripe\Refund::create().
+        //
+        // Example of a real implementation:
+        // if ( ! class_exists( '\Stripe\Stripe' ) ) {
+        //     return false;
+        // }
+        // try {
+        //     \Stripe\Stripe::setApiKey( $this->secret_key );
+        //     $refund = \Stripe\Refund::create([
+        //         'charge' => $charge_id,
+        //     ]);
+        //     return 'succeeded' === $refund->status;
+        // } catch ( \Exception $e ) {
+        //     // Log the error message: $e->getMessage()
+        //     return false;
+        // }
+        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+
+        // Simulate a successful refund for demonstration purposes.
+        // In a real scenario, this would return true only if the API call was successful.
+        return true;
+    }
 }

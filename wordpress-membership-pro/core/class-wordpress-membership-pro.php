@@ -89,6 +89,15 @@ class WordPress_Membership_Pro {
     protected $transactions_handler;
 
     /**
+     * The gamification handler instance.
+     *
+     * @since    1.0.8
+     * @access   protected
+     * @var      WMP_Gamification    $gamification_handler    Handles gamification logic.
+     */
+    protected $gamification_handler;
+
+    /**
      * Define the core functionality of the plugin.
      *
      * Set the plugin name and the plugin version that can be used throughout the plugin.
@@ -107,6 +116,7 @@ class WordPress_Membership_Pro {
         $this->gateways_manager      = new WMP_Gateways( $this->subscriptions_handler, $this->transactions_handler );
         $this->affiliates_handler    = new WMP_Affiliates();
         $this->referrals_handler     = new WMP_Referrals();
+        $this->gamification_handler  = new WMP_Gamification();
         $this->set_locale();
         $this->define_core_hooks();
         $this->define_admin_hooks();
@@ -145,6 +155,7 @@ class WordPress_Membership_Pro {
         require_once WMP_PLUGIN_DIR . 'api/class-wmp-api.php';
         require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-integration.php';
         require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-mailchimp-integration.php';
+        require_once WMP_PLUGIN_DIR . 'core/class-wmp-gamification.php';
 
         $this->loader = new WMP_Loader();
     }
@@ -187,6 +198,22 @@ class WordPress_Membership_Pro {
         // Integration hooks
         $this->loader->add_action( 'wmp_subscription_activated', $this, 'subscribe_to_mailchimp_on_activation', 10, 2 );
         $this->loader->add_action( 'wmp_subscription_cancelled', $this, 'unsubscribe_from_mailchimp_on_cancellation', 10, 2 );
+
+        // Gamification hooks
+        $this->loader->add_action( 'wmp_subscription_activated', $this->gamification_handler, 'check_for_badges_on_activation', 10, 2 );
+        $this->loader->add_action( 'wmp_referral_created', $this->gamification_handler, 'check_for_first_referral_badge', 10, 2 );
+
+        // Cron hooks
+        $this->loader->add_action( 'wmp_daily_cron', $this, 'run_daily_cron_jobs' );
+    }
+
+    /**
+     * Run all daily cron jobs for the plugin.
+     *
+     * @since 1.0.9
+     */
+    public function run_daily_cron_jobs() {
+        $this->gamification_handler->check_for_anniversary_badges();
     }
 
     /**
@@ -282,7 +309,7 @@ class WordPress_Membership_Pro {
      * @access   private
      */
     private function define_public_hooks() {
-        $plugin_public = new WMP_Public( $this->get_plugin_name(), $this->get_version(), $this->subscriptions_handler, $this->gateways_manager, $this->affiliates_handler, $this->referrals_handler, $this->transactions_handler );
+        $plugin_public = new WMP_Public( $this->get_plugin_name(), $this->get_version(), $this->subscriptions_handler, $this->gateways_manager, $this->affiliates_handler, $this->referrals_handler, $this->transactions_handler, $this->gamification_handler );
 
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );
