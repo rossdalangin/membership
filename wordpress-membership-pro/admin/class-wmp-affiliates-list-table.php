@@ -186,7 +186,9 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
         $sql .= " OFFSET %d";
         $params[] = ( $page_number - 1 ) * $per_page;
 
-        return $wpdb->get_results( $wpdb->prepare( $sql, $params ), 'ARRAY_A' );
+        $query = call_user_func_array( array( $wpdb, 'prepare' ), array_merge( array( $sql ), $params ) );
+
+        return $wpdb->get_results( $query, 'ARRAY_A' );
     }
 
     /**
@@ -203,7 +205,9 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
             $params[] = $status;
         }
 
-        return $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
+        $query = call_user_func_array( array( $wpdb, 'prepare' ), array_merge( array( $sql ), $params ) );
+
+        return $wpdb->get_var( $query );
     }
 
     /**
