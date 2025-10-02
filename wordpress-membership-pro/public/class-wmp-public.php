@@ -634,6 +634,7 @@ class WMP_Public {
         add_shortcode( 'wmp_affiliate_registration', array( $this->shortcodes, 'render_affiliate_registration_shortcode' ) );
         add_shortcode( 'wmp_affiliate_dashboard', array( $this->shortcodes, 'render_affiliate_dashboard_shortcode' ) );
         add_shortcode( 'wmp_leaderboard', array( $this->shortcodes, 'render_leaderboard_shortcode' ) );
+        add_shortcode( 'wmp_lead_form', array( $this->shortcodes, 'render_lead_form_shortcode' ) );
     }
 
     /**
@@ -714,5 +715,88 @@ class WMP_Public {
             'original_price_formatted' => '$' . number_format( (float)$plan_price, 2 ),
             'discounted_price_formatted' => '$' . number_format( (float)$new_price, 2 ),
         ) );
+    }
+
+    /**
+     * Handle the AJAX request for creating a Stripe Setup Intent.
+     *
+     * @since 1.0.9
+     */
+    public function create_setup_intent_ajax_handler() {
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( array( 'message' => 'User not logged in.' ), 401 );
+        }
+
+        // In a real implementation, you would add a nonce check here for security.
+
+        $stripe_gateway = $this->gateways_manager->get_gateway( 'stripe' );
+        if ( ! $stripe_gateway ) {
+            wp_send_json_error( array( 'message' => 'Stripe gateway not enabled.' ), 500 );
+        }
+
+        $user = wp_get_current_user();
+        $customer_id = $stripe_gateway->get_or_create_stripe_customer( $user );
+
+        if ( ! $customer_id ) {
+            wp_send_json_error( array( 'message' => 'Could not create Stripe customer.' ), 500 );
+        }
+
+        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
+        // In a production environment, you would call the Stripe API to create a SetupIntent.
+        // Example:
+        // try {
+        //     \Stripe\Stripe::setApiKey( $stripe_gateway->secret_key );
+        //     $setup_intent = \Stripe\SetupIntent::create([
+        //         'customer' => $customer_id,
+        //         'usage' => 'on_session',
+        //     ]);
+        //     $client_secret = $setup_intent->client_secret;
+        // } catch ( \Exception $e ) {
+        //     wp_send_json_error( array( 'message' => $e->getMessage() ), 500 );
+        // }
+        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+
+        // Simulate creating a Setup Intent
+        $client_secret = 'seti_' . uniqid() . '_secret_' . uniqid();
+
+        wp_send_json_success( array( 'client_secret' => $client_secret ) );
+    }
+
+    /**
+     * Process the lead capture form submission.
+     *
+     * @since 1.0.9
+     */
+    public function process_lead_capture() {
+        if ( ! isset( $_POST['wmp_action'] ) || 'process_lead_capture' !== $_POST['wmp_action'] ) {
+            return;
+        }
+
+        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'wmp_lead_capture_nonce' ) ) {
+            wp_die( 'Security check failed.' );
+        }
+
+        $email = isset( $_POST['wmp_lead_email'] ) ? sanitize_email( $_POST['wmp_lead_email'] ) : '';
+        if ( ! is_email( $email ) ) {
+            // In a real plugin, you'd add a more user-friendly error message here.
+            return;
+        }
+
+        $options = get_option( 'wmp_settings' );
+        $api_key = isset( $options['mailchimp_api_key'] ) ? $options['mailchimp_api_key'] : '';
+        $list_id = isset( $options['mailchimp_list_id'] ) ? $options['mailchimp_list_id'] : '';
+
+        if ( empty( $api_key ) || empty( $list_id ) ) {
+            // Silently fail if Mailchimp is not configured.
+            return;
+        }
+
+        $mailchimp = new WMP_Mailchimp_Integration();
+        $mailchimp->add_subscriber( $email, $list_id );
+
+        // Redirect back to the same page with a success message.
+        $redirect_url = add_query_arg( 'wmp_message', 'lead_captured', wp_get_referer() );
+        wp_safe_redirect( $redirect_url );
+        exit;
     }
 }

@@ -100,6 +100,83 @@
 
 		// Handle change event on gateway radio buttons
 		$( 'input[name="wmp_payment_gateway"]' ).on( 'change', toggleGatewayFields );
+
+        // --- Billing Portal: Update Payment Method ---
+        $( '#wmp-update-payment-method-button' ).on( 'click', function( e ) {
+            e.preventDefault();
+            var button = $( this );
+            button.text( 'Loading...' ).prop( 'disabled', true );
+
+            $.ajax( {
+                url: wmp_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'wmp_create_setup_intent',
+                    // A nonce should be added here for security in a real plugin
+                },
+                success: function( response ) {
+                    if ( response.success ) {
+                        initializeStripeUpdateForm( response.data.client_secret, button );
+                    } else {
+                        button.after( '<div class="wmp-message error">' + response.data.message + '</div>' );
+                        button.text( 'Update Payment Method' ).prop( 'disabled', false );
+                    }
+                },
+                error: function() {
+                    button.after( '<div class="wmp-message error">An unknown error occurred.</div>' );
+                    button.text( 'Update Payment Method' ).prop( 'disabled', false );
+                }
+            } );
+        } );
+
+        function initializeStripeUpdateForm( clientSecret, originalButton ) {
+            originalButton.hide();
+
+            var formHtml = '<div id="wmp-update-payment-container">' +
+                '<div id="wmp-stripe-payment-element-update"></div>' +
+                '<button id="wmp-submit-update-payment" class="wmp-button">Save New Card</button>' +
+                '<div id="wmp-stripe-payment-errors-update" role="alert" style="color: #a94442; margin-top: 10px;"></div>' +
+                '</div>';
+
+            originalButton.after( formHtml );
+
+            if ( !stripe ) {
+                 stripe = Stripe( window.wmp_stripe_vars.publishable_key );
+            }
+
+            var elements = stripe.elements( { clientSecret } );
+            var paymentElement = elements.create( 'payment' );
+            paymentElement.mount( '#wmp-stripe-payment-element-update' );
+
+            var submitButton = $( '#wmp-submit-update-payment' );
+            var errorDiv = $( '#wmp-stripe-payment-errors-update' );
+
+            submitButton.on( 'click', async function( e ) {
+                e.preventDefault();
+                submitButton.text( 'Saving...' ).prop( 'disabled', true );
+                errorDiv.text( '' );
+
+                const { error } = await stripe.confirmSetup( {
+                    elements,
+                    confirmParams: {
+                        return_url: window.location.href, // Required, but we handle the result client-side
+                    },
+                    redirect: 'if_required'
+                } );
+
+                if ( error ) {
+                    if ( error.type === "card_error" || error.type === "validation_error" ) {
+                        errorDiv.text( error.message );
+                    } else {
+                        errorDiv.text( "An unexpected error occurred." );
+                    }
+                    submitButton.text( 'Save New Card' ).prop( 'disabled', false );
+                } else {
+                    // Success. The payment method was updated.
+                    $( '#wmp-update-payment-container' ).html( '<div class="wmp-message success">Your payment method has been updated successfully!</div>' );
+                }
+            } );
+        }
 	});
 
 })( jQuery );

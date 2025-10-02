@@ -205,6 +205,7 @@ class WordPress_Membership_Pro {
 
         // Cron hooks
         $this->loader->add_action( 'wmp_daily_cron', $this, 'run_daily_cron_jobs' );
+        $this->loader->add_action( 'wmp_process_payment_retry', $this, 'process_payment_retry', 10, 1 );
     }
 
     /**
@@ -214,6 +215,28 @@ class WordPress_Membership_Pro {
      */
     public function run_daily_cron_jobs() {
         $this->gamification_handler->check_for_anniversary_badges();
+    }
+
+    /**
+     * Process a scheduled payment retry.
+     *
+     * @since 1.0.9
+     * @param int $subscription_id The ID of the subscription to retry payment for.
+     */
+    public function process_payment_retry( $subscription_id ) {
+        $subscription = $this->subscriptions_handler->get_subscription( $subscription_id );
+
+        if ( ! $subscription || 'on-hold' !== $subscription->status ) {
+            return;
+        }
+
+        $gateway = $this->gateways_manager->get_gateway( $subscription->gateway );
+
+        if ( $gateway && method_exists( $gateway, 'attempt_payment_retry' ) ) {
+            // The gateway's method will handle the success/failure logic,
+            // including updating subscription status via webhooks.
+            $gateway->attempt_payment_retry( $subscription );
+        }
     }
 
     /**
@@ -324,6 +347,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'wmp_transaction_created', $plugin_public, 'record_referral_on_transaction', 10, 2 );
         $this->loader->add_action( 'wp_ajax_wmp_apply_coupon', $plugin_public, 'apply_coupon_ajax_handler' );
         $this->loader->add_action( 'wp_ajax_nopriv_wmp_apply_coupon', $plugin_public, 'apply_coupon_ajax_handler' );
+        $this->loader->add_action( 'wp_ajax_wmp_create_setup_intent', $plugin_public, 'create_setup_intent_ajax_handler' );
         $this->loader->add_action( 'init', $plugin_public, 'register_shortcodes' );
         $this->loader->add_action( 'init', $plugin_public, 'process_checkout' );
         $this->loader->add_action( 'init', $plugin_public, 'handle_invoice_download' );
@@ -333,6 +357,7 @@ class WordPress_Membership_Pro {
         $this->loader->add_action( 'init', $plugin_public, 'handle_paypal_subscription_return' );
         $this->loader->add_action( 'init', $plugin_public, 'process_affiliate_registration' );
         $this->loader->add_action( 'init', $plugin_public, 'process_payout_request' );
+        $this->loader->add_action( 'init', $plugin_public, 'process_lead_capture' );
         $this->loader->add_filter( 'the_content', $plugin_public, 'filter_the_content' );
     }
 

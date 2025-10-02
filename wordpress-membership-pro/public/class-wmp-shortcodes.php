@@ -380,6 +380,27 @@ class WMP_Shortcodes {
             $output .= '<p>' . __( 'You do not have any subscriptions.', 'wordpress-membership-pro' ) . '</p>';
         }
 
+        $output .= '<h3>' . __( 'Payment Methods', 'wordpress-membership-pro' ) . '</h3>';
+
+        // Check for an active subscription with a gateway that supports payment method updates.
+        $has_updatable_subscription = false;
+        if ( ! empty( $subscriptions ) ) {
+            foreach ( $subscriptions as $subscription ) {
+                if ( 'active' === $subscription->status && 'stripe' === $subscription->gateway ) {
+                    $has_updatable_subscription = true;
+                    break;
+                }
+            }
+        }
+
+        if ( $has_updatable_subscription ) {
+            $output .= '<p>' . __( 'Your payment method on file can be updated below.', 'wordpress-membership-pro' ) . '</p>';
+            // In the next steps, this will be replaced with a Stripe Elements form.
+            $output .= '<a href="#" id="wmp-update-payment-method-button" class="wmp-button">' . __( 'Update Payment Method', 'wordpress-membership-pro' ) . '</a>';
+        } else {
+            $output .= '<p>' . __( 'You do not have an active subscription with a payment method that can be updated online.', 'wordpress-membership-pro' ) . '</p>';
+        }
+
         $output .= '<h3>' . __( 'Billing History', 'wordpress-membership-pro' ) . '</h3>';
 
         global $wpdb;
@@ -862,6 +883,48 @@ class WMP_Shortcodes {
             $output .= '</ol>';
         }
 
+        $output .= '</div>';
+
+        return $output;
+    }
+
+    /**
+     * Renders the [wmp_lead_form] shortcode.
+     *
+     * Displays a simple email capture form.
+     *
+     * @since    1.0.9
+     * @param    array     $atts    Shortcode attributes.
+     * @return   string    The shortcode output.
+     */
+    public function render_lead_form_shortcode( $atts ) {
+        $atts = shortcode_atts(
+            array(
+                'submit_text' => __( 'Subscribe', 'wordpress-membership-pro' ),
+            ),
+            $atts,
+            'wmp_lead_form'
+        );
+
+        // Don't show the form if the user is already logged in and has an active subscription.
+        if ( is_user_logged_in() && $this->subscriptions_handler->get_user_latest_subscription( get_current_user_id() ) ) {
+            return '';
+        }
+
+        $output = '';
+
+        if ( isset( $_GET['wmp_message'] ) && 'lead_captured' === $_GET['wmp_message'] ) {
+            return '<div class="wmp-message success">' . __( 'Thank you for subscribing!', 'wordpress-membership-pro' ) . '</div>';
+        }
+
+        $output .= '<div class="wmp-lead-form">';
+        $output .= '<form action="" method="post">';
+        $output .= wp_nonce_field( 'wmp_lead_capture_nonce', '_wpnonce', true, false );
+        $output .= '<input type="hidden" name="wmp_action" value="process_lead_capture" />';
+        $output .= '<p><label for="wmp_lead_email">' . __( 'Email Address', 'wordpress-membership-pro' ) . '</label><br/>';
+        $output .= '<input type="email" name="wmp_lead_email" id="wmp_lead_email" required /></p>';
+        $output .= '<p><input type="submit" value="' . esc_attr( $atts['submit_text'] ) . '" /></p>';
+        $output .= '</form>';
         $output .= '</div>';
 
         return $output;

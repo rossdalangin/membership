@@ -290,4 +290,76 @@ class WMP_Gateway_Stripe {
         // In a real scenario, this would return true only if the API call was successful.
         return true;
     }
+
+    /**
+     * Get or create a Stripe Customer ID for a user.
+     *
+     * @since 1.0.9
+     * @param WP_User $user The user object.
+     * @return string|false The Stripe Customer ID or false on failure.
+     */
+    public function get_or_create_stripe_customer( $user ) {
+        $customer_id = get_user_meta( $user->ID, '_wmp_stripe_customer_id', true );
+
+        if ( ! empty( $customer_id ) ) {
+            return $customer_id;
+        }
+
+        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
+        // In a production environment, you would call the Stripe API to create a customer.
+        // Example:
+        // try {
+        //     \Stripe\Stripe::setApiKey( $this->secret_key );
+        //     $customer = \Stripe\Customer::create([
+        //         'email' => $user->user_email,
+        //         'name'  => $user->display_name,
+        //     ]);
+        //     $customer_id = $customer->id;
+        // } catch ( \Exception $e ) {
+        //     // Log error
+        //     return false;
+        // }
+        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+
+        // Simulate creating a customer
+        $customer_id = 'cus_' . uniqid();
+
+        update_user_meta( $user->ID, '_wmp_stripe_customer_id', $customer_id );
+
+        return $customer_id;
+    }
+
+    /**
+     * Attempt to process a recurring payment for a subscription.
+     *
+     * @since 1.0.9
+     * @param object $subscription The subscription object.
+     * @return bool True on success, false on failure.
+     */
+    public function attempt_payment_retry( $subscription ) {
+        // --- IMPORTANT: DEVELOPMENT-ONLY SIMULATION ---
+        // In a production environment, you would use the Stripe API to create a new invoice
+        // or charge the customer directly. This is a placeholder for that logic.
+        // Example:
+        // $customer_id = get_user_meta( $subscription->user_id, '_wmp_stripe_customer_id', true );
+        // $price = get_post_meta( $subscription->plan_id, '_wmp_price', true );
+        // try {
+        //     \Stripe\Stripe::setApiKey( $this->secret_key );
+        //     \Stripe\Charge::create([
+        //         'amount'   => $price * 100, // Amount in cents
+        //         'currency' => 'usd',
+        //         'customer' => $customer_id,
+        //         'description' => 'Retry for subscription #' . $subscription->id,
+        //     ]);
+        //     // The 'invoice.payment_succeeded' webhook will handle reactivating the subscription.
+        // } catch ( \Exception $e ) {
+        //     // The 'invoice.payment_failed' webhook will handle the next retry or cancellation.
+        //     return false;
+        // }
+        // --- END OF DEVELOPMENT-ONLY SIMULATION ---
+
+        // For simulation purposes, we'll assume the retry is successful.
+        // The webhook handler will then update the subscription status.
+        return true;
+    }
 }
