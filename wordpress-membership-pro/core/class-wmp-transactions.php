@@ -66,7 +66,19 @@ class WMP_Transactions {
     }
 
     /**
-     * Refund a transaction.
+     * Get a transaction by its ID.
+     *
+     * @since 1.0.8
+     * @param int $transaction_id The ID of the transaction.
+     * @return object|null The transaction object or null if not found.
+     */
+    public function get_transaction( $transaction_id ) {
+        global $wpdb;
+        return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$this->table_name} WHERE id = %d", $transaction_id ) );
+    }
+
+    /**
+     * Refund a transaction, including processing it with the payment gateway.
      *
      * @since 1.0.3
      * @param int $transaction_id The ID of the transaction to refund.
@@ -75,6 +87,29 @@ class WMP_Transactions {
     public function refund_transaction( $transaction_id ) {
         global $wpdb;
 
+        $transaction = $this->get_transaction( $transaction_id );
+        if ( ! $transaction ) {
+            return false;
+        }
+
+        // We need the gateway manager to get the correct gateway object
+        $subscriptions_handler = new WMP_Subscriptions(); // Dummy, not used for refunds
+        $gateways_manager = new WMP_Gateways( $subscriptions_handler, $this );
+        $gateway = $gateways_manager->get_gateway( $transaction->gateway );
+
+        $refund_successful = false;
+        if ( $gateway && method_exists( $gateway, 'process_refund' ) ) {
+            $refund_successful = $gateway->process_refund( $transaction->transaction_id );
+        } elseif ( 'offline' === $transaction->gateway ) {
+            // Offline transactions can be refunded manually
+            $refund_successful = true;
+        }
+
+        if ( ! $refund_successful ) {
+            return false;
+        }
+
+        // If the gateway refund was successful, update our local record.
         $result = $wpdb->update(
             $this->table_name,
             array( 'status' => 'refunded' ),
@@ -84,6 +119,8 @@ class WMP_Transactions {
         );
 
         if ( ! $result ) {
+            // The gateway refund succeeded but our DB update failed. This requires manual intervention.
+            // In a real plugin, you would log this error.
             return false;
         }
 

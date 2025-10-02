@@ -207,13 +207,13 @@ class WMP_Subscriptions {
     }
 
     /**
-     * Update a subscription's plan.
+     * Update a subscription's plan, calculate proration, and return the proration charge.
      *
-     * @since   1.0.2
+     * @since   1.0.9
      * @param   int   $subscription_id   The ID of the subscription to update.
      * @param   int   $new_plan_id       The ID of the new plan.
      * @param   array $gateway_data      Optional data from the payment gateway (e.g., new gateway subscription ID).
-     * @return  bool                     True on success, false on failure.
+     * @return  float|false              The proration charge (positive for upgrade, negative for downgrade credit), or false on failure.
      */
     public function change_subscription_plan( $subscription_id, $new_plan_id, $gateway_data = array() ) {
         global $wpdb;
@@ -223,7 +223,49 @@ class WMP_Subscriptions {
             return false;
         }
 
+        // --- Proration Calculation ---
         $old_plan_id = $subscription->plan_id;
+        $old_plan_price = (float) get_post_meta( $old_plan_id, '_wmp_price', true );
+        $old_plan_period = get_post_meta( $old_plan_id, '_wmp_billing_period', true );
+        $old_plan_frequency = (int) get_post_meta( $old_plan_id, '_wmp_billing_frequency', true );
+        $new_plan_price = (float) get_post_meta( $new_plan_id, '_wmp_price', true );
+
+        // This calculation assumes the new plan has the same billing cycle as the old one.
+        $days_in_cycle = 0;
+        switch ( $old_plan_period ) {
+            case 'day':   $days_in_cycle = $old_plan_frequency; break;
+            case 'week':  $days_in_cycle = $old_plan_frequency * 7; break;
+            case 'month': $days_in_cycle = $old_plan_frequency * 30; break; // Simplified
+            case 'year':  $days_in_cycle = $old_plan_frequency * 365; break; // Simplified
+        }
+
+        $proration_charge = 0;
+        if ( $days_in_cycle > 0 ) {
+            $today = time();
+            $start_date = strtotime( $subscription->start_date );
+            // This is a simplified way to find the current cycle start date.
+            // A robust solution would need a dedicated `current_period_start` field in the database.
+            $seconds_in_cycle = $days_in_cycle * 86400;
+            $cycles_passed = floor( ( $today - $start_date ) / $seconds_in_cycle );
+            $current_cycle_start = $start_date + ( $cycles_passed * $seconds_in_cycle );
+            $current_cycle_end = $current_cycle_start + $seconds_in_cycle;
+
+            $seconds_remaining = $current_cycle_end - $today;
+            if ( $seconds_remaining < 0 ) {
+                $seconds_remaining = 0;
+            }
+
+            $days_remaining = floor( $seconds_remaining / 86400 );
+
+            $old_plan_cost_per_day = $old_plan_price / $days_in_cycle;
+            $new_plan_cost_per_day = $new_plan_price / $days_in_cycle;
+
+            $remaining_cost_of_old_plan = $days_remaining * $old_plan_cost_per_day;
+            $cost_of_new_plan_for_rest_of_cycle = $days_remaining * $new_plan_cost_per_day;
+
+            $proration_charge = $cost_of_new_plan_for_rest_of_cycle - $remaining_cost_of_old_plan;
+        }
+        // --- End Proration ---
 
         $update_data = array(
             'plan_id'    => $new_plan_id,
@@ -249,90 +291,8 @@ class WMP_Subscriptions {
             return false;
         }
 
-        // --- Placeholder for Future Proration Logic ---
-        // In a real-world scenario, you would add logic here to handle
-        // prorated payments for upgrades or downgrades. This might involve:
-        // 1. Calculating the remaining value of the current plan.
-        // 2. Calculating the cost of the new plan.
-        // 3. Charging the user the difference for an upgrade or providing a credit for a downgrade.
-        // 4. Hooking into the payment gateway to process the proration charge.
-        // --- End of Placeholder ---
-
         do_action( 'wmp_subscription_plan_changed', $subscription_id, $subscription->user_id, $new_plan_id, $old_plan_id );
 
-        return true;
-    }
-
-    /**
-     * Changes a user's subscription from one plan to another, calculating proration.
-     *
-     * @since    1.0.7
-     * @param    int    $subscription_id      The ID of the subscription to change.
-     * @param    int    $new_plan_id          The ID of the new plan.
-     * @return   float|false                  The proration charge (positive for upgrade, negative for downgrade credit), or false on failure.
-     */
-    public function change_subscription( $subscription_id, $new_plan_id ) {
-        $subscription = $this->get_subscription( $subscription_id );
-        if ( ! $subscription ) {
-            return false;
-        }
-
-        $old_plan_id = $subscription->plan_id;
-        $old_plan_price = (float) get_post_meta( $old_plan_id, '_wmp_price', true );
-        $old_plan_period = get_post_meta( $old_plan_id, '_wmp_billing_period', true );
-        $old_plan_frequency = (int) get_post_meta( $old_plan_id, '_wmp_billing_frequency', true );
-
-        $new_plan_price = (float) get_post_meta( $new_plan_id, '_wmp_price', true );
-
-        // For simplicity, this calculation assumes the new plan has the same billing cycle as the old one.
-        // A more advanced implementation would handle changing cycles (e.g., monthly to yearly).
-
-        $days_in_cycle = 0;
-        switch ( $old_plan_period ) {
-            case 'day':   $days_in_cycle = $old_plan_frequency; break;
-            case 'week':  $days_in_cycle = $old_plan_frequency * 7; break;
-            case 'month': $days_in_cycle = $old_plan_frequency * 30; break; // Simplified
-            case 'year':  $days_in_cycle = $old_plan_frequency * 365; break; // Simplified
-        }
-
-        if ( $days_in_cycle <= 0 ) {
-            return false; // Invalid billing cycle
-        }
-
-        // --- Time-based Proration Calculation ---
-        $today = time();
-        $start_date = strtotime( $subscription->start_date );
-
-        // This is a simplified way to find the current cycle start date.
-        // A robust solution would need a dedicated `current_period_start` field in the database.
-        $seconds_in_cycle = $days_in_cycle * 86400;
-        $cycles_passed = floor( ( $today - $start_date ) / $seconds_in_cycle );
-        $current_cycle_start = $start_date + ( $cycles_passed * $seconds_in_cycle );
-        $current_cycle_end = $current_cycle_start + $seconds_in_cycle;
-
-        $seconds_remaining = $current_cycle_end - $today;
-        if ( $seconds_remaining < 0 ) {
-            $seconds_remaining = 0;
-        }
-
-        $days_remaining = floor( $seconds_remaining / 86400 );
-
-        $old_plan_cost_per_day = $old_plan_price / $days_in_cycle;
-        $new_plan_cost_per_day = $new_plan_price / $days_in_cycle;
-
-        $remaining_cost_of_old_plan = $days_remaining * $old_plan_cost_per_day;
-        $cost_of_new_plan_for_rest_of_cycle = $days_remaining * $new_plan_cost_per_day;
-
-        $proration_charge = $cost_of_new_plan_for_rest_of_cycle - $remaining_cost_of_old_plan;
-
-        // --- Update Local Subscription ---
-        $result = $this->change_subscription_plan( $subscription_id, $new_plan_id, array() );
-
-        if ( ! $result ) {
-            return false;
-        }
-
-        // Return the calculated charge. The calling function will handle the transaction.
         return round( $proration_charge, 2 );
     }
 }

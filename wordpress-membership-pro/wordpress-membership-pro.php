@@ -30,6 +30,10 @@ define( 'WMP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 function activate_wmp() {
 	require_once WMP_PLUGIN_DIR . 'includes/class-wmp-activator.php';
 	WMP_Activator::activate();
+
+    if ( ! wp_next_scheduled( 'wmp_daily_cron' ) ) {
+        wp_schedule_event( time(), 'daily', 'wmp_daily_cron' );
+    }
 }
 
 /**
@@ -38,6 +42,8 @@ function activate_wmp() {
 function deactivate_wmp() {
 	require_once WMP_PLUGIN_DIR . 'includes/class-wmp-deactivator.php';
 	WMP_Deactivator::deactivate();
+
+    wp_clear_scheduled_hook( 'wmp_daily_cron' );
 }
 
 register_activation_hook( __FILE__, 'activate_wmp' );

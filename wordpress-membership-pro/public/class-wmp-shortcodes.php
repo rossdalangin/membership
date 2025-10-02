@@ -237,6 +237,39 @@ class WMP_Shortcodes {
         $output .= '</form>';
         $output .= '</div>';
 
+        // Display Earned Badges
+        $output .= $this->_render_user_badges( $current_user->ID );
+
+        return $output;
+    }
+
+    /**
+     * Helper function to render the earned badges for a user.
+     *
+     * @since 1.0.8
+     * @access private
+     * @param int $user_id The ID of the user.
+     * @return string The HTML for the badges section.
+     */
+    private function _render_user_badges( $user_id ) {
+        $output = '<h3>' . __( 'My Badges', 'wordpress-membership-pro' ) . '</h3>';
+        $earned_badges = get_user_meta( $user_id, '_wmp_earned_badge', false );
+
+        if ( ! empty( $earned_badges ) ) {
+            $output .= '<div class="wmp-badges-grid">';
+            foreach ( array_unique( $earned_badges ) as $badge_id ) {
+                $badge_post = get_post( $badge_id );
+                if ( $badge_post ) {
+                    $output .= '<div class="wmp-badge">';
+                    $output .= get_the_post_thumbnail( $badge_id, 'thumbnail' );
+                    $output .= '<h4>' . esc_html( $badge_post->post_title ) . '</h4>';
+                    $output .= '</div>';
+                }
+            }
+            $output .= '</div>';
+        } else {
+            $output .= '<p>' . __( 'You have not earned any badges yet.', 'wordpress-membership-pro' ) . '</p>';
+        }
         return $output;
     }
 
@@ -385,6 +418,26 @@ class WMP_Shortcodes {
         }
 
         $output .= '</div>';
+
+        // Display Earned Badges
+        $output .= '<h3>' . __( 'My Badges', 'wordpress-membership-pro' ) . '</h3>';
+        $earned_badges = get_user_meta( $current_user->ID, '_wmp_earned_badge', false );
+
+        if ( ! empty( $earned_badges ) ) {
+            $output .= '<div class="wmp-badges-grid">';
+            foreach ( array_unique($earned_badges) as $badge_id ) {
+                $badge_post = get_post( $badge_id );
+                if ( $badge_post ) {
+                    $output .= '<div class="wmp-badge">';
+                    $output .= get_the_post_thumbnail( $badge_id, 'thumbnail' );
+                    $output .= '<h4>' . esc_html( $badge_post->post_title ) . '</h4>';
+                    $output .= '</div>';
+                }
+            }
+            $output .= '</div>';
+        } else {
+            $output .= '<p>' . __( 'You have not earned any badges yet.', 'wordpress-membership-pro' ) . '</p>';
+        }
 
         return $output;
     }
@@ -738,5 +791,79 @@ class WMP_Shortcodes {
         ), home_url() );
 
         return '<a href="' . esc_url( $download_url ) . '" class="wmp-download-link">' . esc_html( $atts['text'] ) . '</a>';
+    }
+
+    /**
+     * Renders the [wmp_leaderboard] shortcode.
+     *
+     * Displays a leaderboard for a specific affiliate contest.
+     *
+     * @since    1.0.8
+     * @param    array     $atts    Shortcode attributes.
+     * @return   string    The shortcode output.
+     */
+    public function render_leaderboard_shortcode( $atts ) {
+        $atts = shortcode_atts(
+            array(
+                'contest_id' => 0,
+            ),
+            $atts,
+            'wmp_leaderboard'
+        );
+
+        $contest_id = absint( $atts['contest_id'] );
+        if ( ! $contest_id ) {
+            return __( 'No contest ID specified.', 'wordpress-membership-pro' );
+        }
+
+        $contest = get_post( $contest_id );
+        if ( ! $contest || 'wmp_contest' !== $contest->post_type ) {
+            return __( 'Invalid contest ID.', 'wordpress-membership-pro' );
+        }
+
+        $start_date = get_post_meta( $contest_id, '_wmp_start_date', true );
+        $end_date = get_post_meta( $contest_id, '_wmp_end_date', true );
+
+        if ( empty( $start_date ) || empty( $end_date ) ) {
+            return __( 'Contest dates not set.', 'wordpress-membership-pro' );
+        }
+
+        global $wpdb;
+        $referrals_table = $wpdb->prefix . 'wmp_referrals';
+        $results = $wpdb->get_results( $wpdb->prepare(
+            "SELECT affiliate_id, COUNT(id) as referral_count
+            FROM {$referrals_table}
+            WHERE transaction_id IS NOT NULL
+            AND created_at >= %s
+            AND created_at <= %s
+            GROUP BY affiliate_id
+            ORDER BY referral_count DESC",
+            $start_date,
+            $end_date
+        ) );
+
+        $output = '<div class="wmp-leaderboard">';
+        $output .= '<h3>' . esc_html( $contest->post_title ) . '</h3>';
+
+        if ( empty( $results ) ) {
+            $output .= '<p>' . __( 'No referrals have been recorded for this contest yet.', 'wordpress-membership-pro' ) . '</p>';
+        } else {
+            $output .= '<ol class="wmp-leaderboard-list">';
+            foreach ( $results as $result ) {
+                $affiliate = $this->affiliates_handler->get_affiliate( $result->affiliate_id );
+                if ( $affiliate ) {
+                    $user = get_userdata( $affiliate->user_id );
+                    $output .= '<li>';
+                    $output .= '<span class="wmp-leaderboard-name">' . esc_html( $user->display_name ) . '</span>';
+                    $output .= '<span class="wmp-leaderboard-count">' . absint( $result->referral_count ) . ' ' . __( 'referrals', 'wordpress-membership-pro' ) . '</span>';
+                    $output .= '</li>';
+                }
+            }
+            $output .= '</ol>';
+        }
+
+        $output .= '</div>';
+
+        return $output;
     }
 }

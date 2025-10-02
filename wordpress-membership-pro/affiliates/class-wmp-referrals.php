@@ -56,7 +56,14 @@ class WMP_Referrals {
 
         $result = $wpdb->insert( $this->table_name, $data );
 
-        return $result ? $wpdb->insert_id : false;
+        if ( ! $result ) {
+            return false;
+        }
+
+        $referral_id = $wpdb->insert_id;
+        do_action( 'wmp_referral_created', $referral_id, $data );
+
+        return $referral_id;
     }
 
     /**

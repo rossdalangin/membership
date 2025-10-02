@@ -82,7 +82,16 @@ class WMP_Public {
      */
     private $transactions_handler;
 
-    public function __construct( $plugin_name, $version, $subscriptions_handler, $gateways_manager, $affiliates_handler, $referrals_handler, $transactions_handler ) {
+    /**
+     * The gamification handler instance.
+     *
+     * @since    1.0.9
+     * @access   private
+     * @var      WMP_Gamification    $gamification_handler    Handles gamification logic.
+     */
+    private $gamification_handler;
+
+    public function __construct( $plugin_name, $version, $subscriptions_handler, $gateways_manager, $affiliates_handler, $referrals_handler, $transactions_handler, $gamification_handler ) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
         $this->subscriptions_handler = $subscriptions_handler;
@@ -90,6 +99,7 @@ class WMP_Public {
         $this->affiliates_handler = $affiliates_handler;
         $this->referrals_handler = $referrals_handler;
         $this->transactions_handler = $transactions_handler;
+        $this->gamification_handler = $gamification_handler;
 
         require_once plugin_dir_path( __FILE__ ) . 'class-wmp-content-protection.php';
         $this->content_protection = new WMP_Content_Protection( $this->subscriptions_handler );
@@ -219,18 +229,20 @@ class WMP_Public {
         // For offline payments, we create or update the subscription directly.
         if ( 'offline' === $gateway_id ) {
             if ( $change_subscription_id ) {
-                $proration_charge = $this->subscriptions_handler->change_subscription( $change_subscription_id, $plan_id );
+                $proration_charge = $this->subscriptions_handler->change_subscription_plan( $change_subscription_id, $plan_id );
                 if ( false !== $proration_charge ) {
                     if ( $proration_charge > 0 ) {
+                        // Create a transaction for the prorated upgrade cost.
                         $this->transactions_handler->create_transaction( array(
                             'subscription_id' => $change_subscription_id,
                             'user_id'         => get_current_user_id(),
                             'amount'          => $proration_charge,
                             'gateway'         => 'offline',
-                            'transaction_id'  => 'proration_offline_' . $change_subscription_id,
+                            'transaction_id'  => 'proration_offline_' . $change_subscription_id . '_' . time(),
                             'status'          => 'on-hold',
                         ) );
                     }
+                    // For downgrades, a credit would be handled here in a full implementation.
                     $redirect_url = add_query_arg( 'wmp_message', 'plan_changed_pending', home_url( '/account' ) );
                 } else {
                     wp_die( __( 'There was an error changing your plan.', 'wordpress-membership-pro' ) );
@@ -621,6 +633,7 @@ class WMP_Public {
         add_shortcode( 'wmp_download', array( $this->shortcodes, 'render_download_shortcode' ) );
         add_shortcode( 'wmp_affiliate_registration', array( $this->shortcodes, 'render_affiliate_registration_shortcode' ) );
         add_shortcode( 'wmp_affiliate_dashboard', array( $this->shortcodes, 'render_affiliate_dashboard_shortcode' ) );
+        add_shortcode( 'wmp_leaderboard', array( $this->shortcodes, 'render_leaderboard_shortcode' ) );
     }
 
     /**

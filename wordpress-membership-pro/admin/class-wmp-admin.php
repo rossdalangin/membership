@@ -81,6 +81,26 @@ class WMP_Admin {
             'normal',
             'high'
         );
+
+        // Contest Details Meta Box
+        add_meta_box(
+            'wmp_contest_details',
+            __( 'Contest Details', 'wordpress-membership-pro' ),
+            array( $this, 'render_contest_details_meta_box' ),
+            'wmp_contest',
+            'normal',
+            'high'
+        );
+
+        // Badge Trigger Meta Box
+        add_meta_box(
+            'wmp_badge_trigger',
+            __( 'Badge Trigger', 'wordpress-membership-pro' ),
+            array( $this, 'render_badge_trigger_meta_box' ),
+            'wmp_badge',
+            'normal',
+            'high'
+        );
     }
 
     /**
@@ -1302,6 +1322,26 @@ class WMP_Admin {
             $restricted_plans = isset( $_POST['wmp_restricted_to_plans'] ) ? array_map( 'absint', $_POST['wmp_restricted_to_plans'] ) : array();
             update_post_meta( $post_id, '_wmp_restricted_to_plans', $restricted_plans );
         }
+
+        // Save Contest Details meta box
+        if ( isset( $_POST['wmp_contest_details_nonce'] ) && wp_verify_nonce( $_POST['wmp_contest_details_nonce'], 'wmp_save_contest_details' ) ) {
+            if ( isset( $_POST['wmp_start_date'] ) ) {
+                update_post_meta( $post_id, '_wmp_start_date', sanitize_text_field( $_POST['wmp_start_date'] ) );
+            }
+            if ( isset( $_POST['wmp_end_date'] ) ) {
+                update_post_meta( $post_id, '_wmp_end_date', sanitize_text_field( $_POST['wmp_end_date'] ) );
+            }
+        }
+
+        // Save Badge Trigger meta box
+        if ( isset( $_POST['wmp_badge_trigger_nonce'] ) && wp_verify_nonce( $_POST['wmp_badge_trigger_nonce'], 'wmp_save_badge_trigger' ) ) {
+            if ( isset( $_POST['wmp_badge_trigger'] ) ) {
+                update_post_meta( $post_id, '_wmp_badge_trigger', sanitize_text_field( $_POST['wmp_badge_trigger'] ) );
+            }
+            if ( isset( $_POST['wmp_badge_trigger_value'] ) ) {
+                update_post_meta( $post_id, '_wmp_badge_trigger_value', sanitize_text_field( $_POST['wmp_badge_trigger_value'] ) );
+            }
+        }
     }
 
     /**
@@ -1320,8 +1360,6 @@ class WMP_Admin {
             return;
         }
 
-        // The integration class needs to be loaded here to be used
-        require_once WMP_PLUGIN_DIR . 'integrations/class-wmp-mailchimp-integration.php';
         $mailchimp = new WMP_Mailchimp_Integration();
         $lists = $mailchimp->get_lists();
 
@@ -1340,5 +1378,63 @@ class WMP_Admin {
         if ( ! empty( $args['description'] ) ) {
             echo '<p class="description">' . esc_html( $args['description'] ) . '</p>';
         }
+    }
+
+    /**
+     * Render the meta box for contest details.
+     *
+     * @since    1.0.8
+     * @param    WP_Post    $post    The post object.
+     */
+    public function render_contest_details_meta_box( $post ) {
+        wp_nonce_field( 'wmp_save_contest_details', 'wmp_contest_details_nonce' );
+
+        $start_date = get_post_meta( $post->ID, '_wmp_start_date', true );
+        $end_date = get_post_meta( $post->ID, '_wmp_end_date', true );
+
+        echo '<p>';
+        echo '<label for="wmp_start_date"><strong>' . __( 'Start Date', 'wordpress-membership-pro' ) . '</strong></label><br/>';
+        echo '<input type="date" id="wmp_start_date" name="wmp_start_date" value="' . esc_attr( $start_date ) . '" />';
+        echo '</p>';
+
+        echo '<p>';
+        echo '<label for="wmp_end_date"><strong>' . __( 'End Date', 'wordpress-membership-pro' ) . '</strong></label><br/>';
+        echo '<input type="date" id="wmp_end_date" name="wmp_end_date" value="' . esc_attr( $end_date ) . '" />';
+        echo '</p>';
+    }
+
+    /**
+     * Render the meta box for badge triggers.
+     *
+     * @since    1.0.8
+     * @param    WP_Post    $post    The post object.
+     */
+    public function render_badge_trigger_meta_box( $post ) {
+        wp_nonce_field( 'wmp_save_badge_trigger', 'wmp_badge_trigger_nonce' );
+
+        $trigger = get_post_meta( $post->ID, '_wmp_badge_trigger', true );
+        $trigger_value = get_post_meta( $post->ID, '_wmp_badge_trigger_value', true );
+
+        $triggers = array(
+            '' => __( '— Select a Trigger —', 'wordpress-membership-pro' ),
+            'subscription_activated' => __( 'Subscription Activated', 'wordpress-membership-pro' ),
+            'first_referral' => __( 'First Successful Referral', 'wordpress-membership-pro' ),
+            'anniversary' => __( 'Membership Anniversary (in years)', 'wordpress-membership-pro' ),
+        );
+
+        echo '<p>';
+        echo '<label for="wmp_badge_trigger"><strong>' . __( 'Trigger', 'wordpress-membership-pro' ) . '</strong></label><br/>';
+        echo '<select id="wmp_badge_trigger" name="wmp_badge_trigger">';
+        foreach ( $triggers as $key => $label ) {
+            echo '<option value="' . esc_attr( $key ) . '" ' . selected( $trigger, $key, false ) . '>' . esc_html( $label ) . '</option>';
+        }
+        echo '</select>';
+        echo '</p>';
+
+        echo '<p>';
+        echo '<label for="wmp_badge_trigger_value"><strong>' . __( 'Trigger Value', 'wordpress-membership-pro' ) . '</strong></label><br/>';
+        echo '<input type="text" id="wmp_badge_trigger_value" name="wmp_badge_trigger_value" value="' . esc_attr( $trigger_value ) . '" />';
+        echo '<p class="description">' . __( 'For anniversaries, enter the number of years (e.g., 1). For other triggers, this can be left blank.', 'wordpress-membership-pro' ) . '</p>';
+        echo '</p>';
     }
 }
