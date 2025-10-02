@@ -79,7 +79,7 @@ class WMP_Admin {
         // Content Protection Meta Box
         $post_types = get_post_types_by_support( 'editor' );
         foreach ( $post_types as $post_type ) {
-            if ( $post_type === 'wmp_membership_plan' || $post_type === 'wmp_payment' ) {
+            if ( $post_type === 'wmp_membership_plan' ) {
                 continue;
             }
             add_meta_box(

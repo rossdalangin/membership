@@ -26,7 +26,6 @@ class WMP_CPTs {
      */
     public function register() {
         $this->register_membership_plan_cpt();
-        $this->register_payment_cpt();
         $this->register_secure_files_cpt();
         $this->register_promo_tools_cpt();
         $this->register_plan_category_taxonomy();
@@ -73,40 +72,6 @@ class WMP_CPTs {
             'show_in_rest'          => true,
         );
         register_post_type( 'wmp_membership_plan', $args );
-    }
-
-    /**
-     * Register the Payment Custom Post Type.
-     *
-     * @since    1.0.0
-     * @access   private
-     */
-    private function register_payment_cpt() {
-        $labels = array(
-            'name'                  => _x( 'Payments', 'Post Type General Name', 'wordpress-membership-pro' ),
-            'singular_name'         => _x( 'Payment', 'Post Type Singular Name', 'wordpress-membership-pro' ),
-            'menu_name'             => __( 'Payments', 'wordpress-membership-pro' ),
-            'all_items'             => __( 'All Payments', 'wordpress-membership-pro' ),
-            'view_item'             => __( 'View Payment', 'wordpress-membership-pro' ),
-            'search_items'          => __( 'Search Payments', 'wordpress-membership-pro' ),
-            'not_found'             => __( 'No payments found', 'wordpress-membership-pro' ),
-        );
-        $args = array(
-            'label'                 => __( 'Payment', 'wordpress-membership-pro' ),
-            'description'           => __( 'To log payment transactions.', 'wordpress-membership-pro' ),
-            'labels'                => $labels,
-            'supports'              => array( 'title', 'editor', 'custom-fields' ),
-            'hierarchical'          => false,
-            'public'                => false,
-            'show_ui'               => true,
-            'show_in_menu'          => 'edit.php?post_type=wmp_membership_plan',
-            'capability_type'       => 'post',
-            'has_archive'           => false,
-            'exclude_from_search'   => true,
-            'publicly_queryable'    => false,
-            'show_in_rest'          => true,
-        );
-        register_post_type( 'wmp_payment', $args );
     }
 
     /**
