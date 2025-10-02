@@ -170,17 +170,23 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
     public static function get_affiliates( $per_page = 20, $page_number = 1, $status = 'all' ) {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
+
         $sql = "SELECT * FROM {$table_name}";
+        $params = array();
 
         if ( 'all' !== $status ) {
-            $sql .= $wpdb->prepare( " WHERE status = %s", $status );
+            $sql .= " WHERE status = %s";
+            $params[] = $status;
         }
 
         $sql .= ' ORDER BY created_at DESC';
-        $sql .= " LIMIT $per_page";
-        $sql .= ' OFFSET ' . ( $page_number - 1 ) * $per_page;
+        $sql .= " LIMIT %d";
+        $params[] = $per_page;
 
-        return $wpdb->get_results( $sql, 'ARRAY_A' );
+        $sql .= " OFFSET %d";
+        $params[] = ( $page_number - 1 ) * $per_page;
+
+        return $wpdb->get_results( $wpdb->prepare( $sql, $params ), 'ARRAY_A' );
     }
 
     /**
@@ -190,12 +196,14 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
         global $wpdb;
         $table_name = $wpdb->prefix . 'wmp_affiliates';
         $sql = "SELECT COUNT(*) FROM {$table_name}";
+        $params = array();
 
         if ( 'all' !== $status ) {
-            $sql .= $wpdb->prepare( " WHERE status = %s", $status );
+            $sql .= " WHERE status = %s";
+            $params[] = $status;
         }
 
-        return $wpdb->get_var( $sql );
+        return $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
     }
 
     /**
