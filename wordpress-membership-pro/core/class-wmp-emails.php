@@ -99,6 +99,34 @@ class WMP_Emails {
         include( $template );
         return ob_get_clean();
     }
+
+    /**
+     * Sends a notification to the site admin when a new affiliate application is submitted.
+     *
+     * @since    1.0.11
+     * @param    int    $user_id    The ID of the user who applied.
+     */
+    public function send_affiliate_application_admin_notification( $user_id ) {
+        $options = get_option( 'wmp_settings' );
+        if ( ! isset( $options['email_admin_new_affiliate_enabled'] ) || ! $options['email_admin_new_affiliate_enabled'] ) {
+            return;
+        }
+
+        $to = get_option( 'admin_email' );
+        $subject = __( '[Membership Site] New Affiliate Application', 'wordpress-membership-pro' );
+        $user = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return;
+        }
+
+        $args = array(
+            'user_login' => $user->user_login,
+            'manage_url' => admin_url( 'admin.php?page=wmp-affiliates' ),
+        );
+
+        $this->send( $to, $subject, 'admin-new-affiliate-application', $args );
+    }
 }
 
 /**

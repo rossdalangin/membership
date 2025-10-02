@@ -833,6 +833,21 @@ class WMP_Admin {
             )
         );
 
+        // New Affiliate Application Email
+        add_settings_field(
+            'wmp_email_admin_new_affiliate',
+            __( 'New Affiliate Application (Admin)', 'wordpress-membership-pro' ),
+            array( $this, 'render_checkbox_input' ),
+            'wmp-settings',
+            'wmp_settings_emails',
+            array(
+                'label_for' => 'wmp_email_admin_new_affiliate',
+                'option_name' => 'wmp_settings',
+                'key' => 'email_admin_new_affiliate_enabled',
+                'description' => __( 'Send a notification to the site admin when a new affiliate application is submitted.', 'wordpress-membership-pro' ),
+            )
+        );
+
         // Pages Section
         add_settings_section(
             'wmp_settings_pages',

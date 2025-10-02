@@ -401,7 +401,11 @@ class WMP_Public {
             'commission_rate' => $commission_rate,
         );
 
-        $this->affiliates_handler->create_affiliate( $affiliate_data );
+        $affiliate_id = $this->affiliates_handler->create_affiliate( $affiliate_data );
+
+        if ( $affiliate_id ) {
+            WMP_Emails()->send_affiliate_application_admin_notification( $user_id );
+        }
 
         $redirect_url = add_query_arg( 'wmp_message', 'affiliate_application_received', get_permalink() );
         wp_redirect( $redirect_url );
