@@ -175,23 +175,18 @@ class WMP_Affiliates_List_Table extends WP_List_Table {
         $limit = absint( $per_page );
         $offset = ( absint( $page_number ) - 1 ) * $limit;
 
-        $sql = "SELECT * FROM {$table_name}";
-        $params = array();
-
-        if ( 'all' !== $status ) {
-            $sql .= " WHERE status = %s";
-            $params[] = sanitize_key( $status );
+        if ( 'all' === $status ) {
+            // No status filter, so the query is simple and doesn't need preparation for the WHERE clause.
+            $sql = "SELECT * FROM {$table_name} ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}";
+            return $wpdb->get_results( $sql, 'ARRAY_A' );
+        } else {
+            // A status filter is applied, so we must use prepare for the WHERE clause.
+            $sql = $wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE status = %s ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}",
+                sanitize_key($status)
+            );
+            return $wpdb->get_results( $sql, 'ARRAY_A' );
         }
-
-        // LIMIT and OFFSET are not placeholders in $wpdb->prepare, they must be part of the SQL string.
-        $sql .= " ORDER BY created_at DESC LIMIT {$limit} OFFSET {$offset}";
-
-        // Only call prepare if we have parameters to prepare.
-        if ( ! empty( $params ) ) {
-             return $wpdb->get_results( $wpdb->prepare( $sql, $params ), 'ARRAY_A' );
-        }
-
-        return $wpdb->get_results( $sql, 'ARRAY_A' );
     }
 
     /**
